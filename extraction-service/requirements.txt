@@ -1,0 +1,8 @@
+redis==5.0.8
+requests==2.32.3
+pdfplumber==0.11.4
+python-docx==1.1.2
+pydantic==2.9.2
+# Optional LLM provider SDKs (used by the respective adapters):
+anthropic==0.69.0
+openai==1.51.2

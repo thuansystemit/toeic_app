@@ -1,0 +1,55 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: toeic_postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: toeic
+      POSTGRES_PASSWORD: toeic
+      POSTGRES_DB: toeic
+    ports:
+      - "5432:5432"
+    volumes:
+      - toeic_pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U toeic -d toeic"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  redis:
+    image: redis:7-alpine
+    container_name: toeic_redis
+    restart: unless-stopped
+    ports:
+      - "6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+
+  # Python question-extraction worker (consumes jobs from Redis).
+  # Build/run with: docker compose --profile extraction up -d extraction-worker
+  extraction-worker:
+    build: ./extraction-service
+    container_name: toeic_extraction_worker
+    restart: unless-stopped
+    profiles: ["extraction"]
+    depends_on:
+      redis:
+        condition: service_healthy
+    environment:
+      REDIS_URL: redis://redis:6379/0
+      EXTRACTION_QUEUE: extraction:jobs
+      # NestJS API as seen from inside the compose network:
+      BACKEND_BASE_URL: http://host.docker.internal:3000/api
+      INTERNAL_API_TOKEN: dev-internal-token-change-me
+      LLM_PROVIDER: ollama
+      OLLAMA_BASE_URL: http://host.docker.internal:11434
+      OLLAMA_MODEL: llama3
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+
+volumes:
+  toeic_pgdata:

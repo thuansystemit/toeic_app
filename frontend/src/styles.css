@@ -1,0 +1,65 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  html {
+    -webkit-font-smoothing: antialiased;
+  }
+  body {
+    @apply bg-amber-50/60 text-slate-800 font-sans;
+    background-image: radial-gradient(
+        60rem 60rem at 110% -10%,
+        rgba(251, 146, 60, 0.08),
+        transparent 60%
+      ),
+      radial-gradient(
+        50rem 50rem at -10% 0%,
+        rgba(245, 158, 11, 0.07),
+        transparent 55%
+      );
+    background-attachment: fixed;
+  }
+}
+
+@layer components {
+  .btn {
+    @apply inline-flex items-center justify-center gap-2 rounded-xl px-4 py-2.5 text-sm font-bold transition-all duration-150 disabled:opacity-50 disabled:cursor-not-allowed;
+  }
+  .btn-primary {
+    @apply btn bg-brand-500 text-white shadow-soft hover:bg-brand-600 hover:-translate-y-0.5 active:translate-y-0;
+  }
+  .btn-ghost {
+    @apply btn bg-white text-slate-700 border border-slate-200 hover:border-brand-300 hover:text-brand-600;
+  }
+  .btn-soft {
+    @apply btn bg-brand-100 text-brand-700 hover:bg-brand-200;
+  }
+  .btn-sm {
+    @apply px-3 py-1.5 text-xs;
+  }
+  .card {
+    @apply rounded-3xl bg-white border border-slate-100 shadow-card;
+  }
+  .input {
+    @apply w-full rounded-xl border border-slate-200 bg-white px-3.5 py-2.5 text-sm outline-none transition focus:border-brand-400 focus:ring-4 focus:ring-brand-100;
+  }
+  .label {
+    @apply flex flex-col gap-1.5 text-sm font-bold text-slate-700;
+  }
+  .badge {
+    @apply inline-flex items-center gap-1 rounded-full bg-amber-100 px-2.5 py-0.5 text-xs font-bold text-amber-800;
+  }
+  .badge-green {
+    @apply badge bg-emerald-100 text-emerald-700;
+  }
+  .badge-slate {
+    @apply badge bg-slate-100 text-slate-600;
+  }
+  .chip {
+    @apply inline-flex items-center rounded-full border border-brand-200 bg-brand-50 px-3 py-1 text-sm font-semibold text-brand-700 transition hover:bg-brand-100 disabled:opacity-50;
+  }
+  .nav-link {
+    @apply rounded-xl px-3 py-2 text-sm font-bold text-slate-500 transition hover:bg-brand-50 hover:text-brand-600;
+  }
+}

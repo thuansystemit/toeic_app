@@ -1,0 +1,83 @@
+import { api } from './client';
+import type { PartSummary, TestDto, NewQuestionInput } from '../types/test';
+
+export async function listPublishedTests(): Promise<TestDto[]> {
+  const res = await api.get<TestDto[]>('/tests');
+  return res.data;
+}
+
+export async function listMyTests(): Promise<TestDto[]> {
+  const res = await api.get<TestDto[]>('/tests/mine');
+  return res.data;
+}
+
+export interface PublishedPart {
+  partId: string;
+  partNumber: number;
+  section: string;
+  count: number;
+}
+
+export async function getPublishedParts(
+  testId: string,
+): Promise<PublishedPart[]> {
+  const res = await api.get<PublishedPart[]>(`/tests/${testId}/parts`);
+  return res.data;
+}
+
+export async function createTest(payload: {
+  title: string;
+  description?: string;
+  timeLimitMinutes?: number;
+}): Promise<TestDto> {
+  const res = await api.post<TestDto>('/tests', payload);
+  return res.data;
+}
+
+export async function getAuthoringView(testId: string): Promise<TestDto> {
+  const res = await api.get<TestDto>(`/tests/${testId}/authoring`);
+  return res.data;
+}
+
+export async function getPartSummaries(testId: string): Promise<PartSummary[]> {
+  const res = await api.get<PartSummary[]>(`/tests/${testId}/summary`);
+  return res.data;
+}
+
+export async function addQuestion(
+  testId: string,
+  partId: string,
+  input: NewQuestionInput,
+): Promise<void> {
+  await api.post(`/tests/${testId}/parts/${partId}/questions`, input);
+}
+
+export async function updateQuestion(
+  testId: string,
+  partId: string,
+  questionId: string,
+  input: { questionText?: string; explanationVi?: string; choices: NewQuestionInput['choices'] },
+): Promise<void> {
+  await api.patch(
+    `/tests/${testId}/parts/${partId}/questions/${questionId}`,
+    input,
+  );
+}
+
+export async function deleteQuestion(
+  testId: string,
+  partId: string,
+  questionId: string,
+): Promise<void> {
+  await api.delete(`/tests/${testId}/parts/${partId}/questions/${questionId}`);
+}
+
+export async function publishTest(testId: string): Promise<TestDto> {
+  const res = await api.post<TestDto>(`/tests/${testId}/publish`);
+  return res.data;
+}
+
+export async function unpublishTest(testId: string): Promise<TestDto> {
+  const res = await api.post<TestDto>(`/tests/${testId}/unpublish`);
+  return res.data;
+}

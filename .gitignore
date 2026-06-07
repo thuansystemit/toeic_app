@@ -1,0 +1,23 @@
+node_modules/
+.npm-cache/
+dist/
+build/
+coverage/
+*.log
+*.bak
+.DS_Store
+
+# uploaded files (local storage)
+uploads/
+
+# env — never commit real secrets (.env.example IS committed)
+.env
+.env.local
+*.local
+
+# editor
+.vscode/
+.idea/
+
+# vite
+frontend/dist/

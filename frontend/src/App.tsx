@@ -1,0 +1,55 @@
+import { BrowserRouter, Navigate, Route, Routes } from 'react-router-dom';
+import { ProtectedRoute } from './components/ProtectedRoute';
+import { LoginPage } from './routes/auth/LoginPage';
+import { RegisterPage } from './routes/auth/RegisterPage';
+import { ForgotPasswordPage } from './routes/auth/ForgotPasswordPage';
+import { ResetPasswordPage } from './routes/auth/ResetPasswordPage';
+import { DashboardPage } from './routes/DashboardPage';
+import { ProfilePage } from './routes/ProfilePage';
+import { TestLibraryPage } from './routes/tests/TestLibraryPage';
+import { ExamRunnerPage } from './routes/exam/ExamRunnerPage';
+import { MyResultsPage } from './routes/review/MyResultsPage';
+import { AttemptReviewPage } from './routes/review/AttemptReviewPage';
+import { AuthoringListPage } from './routes/authoring/AuthoringListPage';
+import { TestEditorPage } from './routes/authoring/TestEditorPage';
+import { UserManagementPage } from './routes/admin/UserManagementPage';
+import { ExamFilesPage } from './routes/exam-files/ExamFilesPage';
+import { ExamFileReviewPage } from './routes/exam-files/ExamFileReviewPage';
+
+export default function App() {
+  return (
+    <BrowserRouter>
+      <Routes>
+        <Route path="/login" element={<LoginPage />} />
+        <Route path="/register" element={<RegisterPage />} />
+        <Route path="/forgot-password" element={<ForgotPasswordPage />} />
+        <Route path="/reset-password" element={<ResetPasswordPage />} />
+
+        {/* Authenticated (any role) */}
+        <Route element={<ProtectedRoute />}>
+          <Route path="/" element={<DashboardPage />} />
+          <Route path="/profile" element={<ProfilePage />} />
+          <Route path="/tests" element={<TestLibraryPage />} />
+          <Route path="/exam/:attemptId" element={<ExamRunnerPage />} />
+          <Route path="/results" element={<MyResultsPage />} />
+          <Route path="/results/:attemptId" element={<AttemptReviewPage />} />
+        </Route>
+
+        {/* Teacher / admin */}
+        <Route element={<ProtectedRoute roles={['teacher', 'admin']} />}>
+          <Route path="/authoring" element={<AuthoringListPage />} />
+          <Route path="/authoring/:testId" element={<TestEditorPage />} />
+          <Route path="/exam-files" element={<ExamFilesPage />} />
+          <Route path="/exam-files/:id/review" element={<ExamFileReviewPage />} />
+        </Route>
+
+        {/* Admin only */}
+        <Route element={<ProtectedRoute roles={['admin']} />}>
+          <Route path="/admin/users" element={<UserManagementPage />} />
+        </Route>
+
+        <Route path="*" element={<Navigate to="/" replace />} />
+      </Routes>
+    </BrowserRouter>
+  );
+}
