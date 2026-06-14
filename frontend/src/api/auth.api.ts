@@ -39,6 +39,13 @@ export async function resetPassword(
   await api.post('/auth/reset-password', { token, newPassword });
 }
 
+/** Silent session restore: exchanges the HttpOnly refresh cookie for a fresh
+ *  access token + user. Used on app boot so a reload keeps you signed in. */
+export async function refreshSession(): Promise<AuthResponse> {
+  const res = await api.post<AuthResponse>('/auth/refresh', {});
+  return res.data;
+}
+
 export async function logout(): Promise<void> {
   await api.post('/auth/logout');
 }

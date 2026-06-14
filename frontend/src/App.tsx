@@ -1,4 +1,7 @@
+import { useEffect, type ReactNode } from 'react';
 import { BrowserRouter, Navigate, Route, Routes } from 'react-router-dom';
+import { useAuthStore } from './store/authStore';
+import { refreshSession } from './api/auth.api';
 import { ProtectedRoute } from './components/ProtectedRoute';
 import { LoginPage } from './routes/auth/LoginPage';
 import { RegisterPage } from './routes/auth/RegisterPage';
@@ -16,9 +19,38 @@ import { UserManagementPage } from './routes/admin/UserManagementPage';
 import { ExamFilesPage } from './routes/exam-files/ExamFilesPage';
 import { ExamFileReviewPage } from './routes/exam-files/ExamFileReviewPage';
 
+// Module-level guard so the boot refresh fires exactly once, even though React
+// StrictMode double-invokes effects in dev (refresh tokens are single-use, so a
+// duplicate call would revoke the just-issued session).
+let bootstrapStarted = false;
+
+function AuthBootstrap({ children }: { children: ReactNode }) {
+  const isBootstrapping = useAuthStore((s) => s.isBootstrapping);
+
+  useEffect(() => {
+    if (bootstrapStarted) return;
+    bootstrapStarted = true;
+    const { setAuth, clear, finishBootstrap } = useAuthStore.getState();
+    refreshSession()
+      .then((res) => setAuth(res.user, res.accessToken))
+      .catch(() => clear()) // no/expired cookie -> stay logged out
+      .finally(() => finishBootstrap());
+  }, []);
+
+  if (isBootstrapping) {
+    return (
+      <div className="grid min-h-screen place-items-center text-slate-400">
+        <i className="fa-solid fa-spinner fa-spin text-2xl" />
+      </div>
+    );
+  }
+  return <>{children}</>;
+}
+
 export default function App() {
   return (
     <BrowserRouter>
+      <AuthBootstrap>
       <Routes>
         <Route path="/login" element={<LoginPage />} />
         <Route path="/register" element={<RegisterPage />} />
@@ -50,6 +82,7 @@ export default function App() {
 
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
+      </AuthBootstrap>
     </BrowserRouter>
   );
 }
