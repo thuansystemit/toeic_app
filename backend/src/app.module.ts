@@ -11,6 +11,8 @@ import { Part } from './tests/entities/part.entity';
 import { Stimulus } from './tests/entities/stimulus.entity';
 import { Question } from './tests/entities/question.entity';
 import { Choice } from './tests/entities/choice.entity';
+import { Skill } from './tests/entities/skill.entity';
+import { QuestionSkill } from './tests/entities/question-skill.entity';
 import { Attempt } from './attempts/entities/attempt.entity';
 import { AttemptAnswer } from './attempts/entities/attempt-answer.entity';
 import { AttemptAudioPlay } from './attempts/entities/attempt-audio-play.entity';
@@ -37,6 +39,8 @@ const ENTITIES = [
   Stimulus,
   Question,
   Choice,
+  Skill,
+  QuestionSkill,
   Attempt,
   AttemptAnswer,
   AttemptAudioPlay,

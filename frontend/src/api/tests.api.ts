@@ -1,5 +1,52 @@
 import { api } from './client';
-import type { PartSummary, TestDto, NewQuestionInput } from '../types/test';
+import type {
+  PartSummary,
+  TestDto,
+  NewQuestionInput,
+  Skill,
+  QuestionSkillsMap,
+} from '../types/test';
+
+export async function listSkills(): Promise<Skill[]> {
+  const res = await api.get<Skill[]>('/tests/skills');
+  return res.data;
+}
+
+export interface GraphNode {
+  id: string;
+  kind: 'skill' | 'question';
+  label: string;
+  category?: string;
+  part?: number;
+}
+export interface KnowledgeGraph {
+  nodes: GraphNode[];
+  links: { source: string; target: string }[];
+}
+
+export async function getKnowledgeGraph(): Promise<KnowledgeGraph> {
+  const res = await api.get<KnowledgeGraph>('/tests/graph');
+  return res.data;
+}
+
+export async function getQuestionSkills(
+  testId: string,
+): Promise<QuestionSkillsMap> {
+  const res = await api.get<QuestionSkillsMap>(`/tests/${testId}/question-skills`);
+  return res.data;
+}
+
+export async function setQuestionSkills(
+  testId: string,
+  partId: string,
+  questionId: string,
+  skillIds: string[],
+): Promise<void> {
+  await api.put(
+    `/tests/${testId}/parts/${partId}/questions/${questionId}/skills`,
+    { skillIds },
+  );
+}
 
 export async function listPublishedTests(): Promise<TestDto[]> {
   const res = await api.get<TestDto[]>('/tests');

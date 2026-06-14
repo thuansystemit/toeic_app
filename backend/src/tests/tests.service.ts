@@ -5,12 +5,14 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { DataSource, Repository } from 'typeorm';
+import { DataSource, In, Repository } from 'typeorm';
 import { Test } from './entities/test.entity';
 import { Part } from './entities/part.entity';
 import { Stimulus } from './entities/stimulus.entity';
 import { Question } from './entities/question.entity';
 import { Choice } from './entities/choice.entity';
+import { Skill } from './entities/skill.entity';
+import { QuestionSkill } from './entities/question-skill.entity';
 import { CreateTestDto } from './dto/create-test.dto';
 import { CreateQuestionDto } from './dto/create-question.dto';
 import { UpdateQuestionDto } from './dto/update-question.dto';
@@ -25,8 +27,153 @@ export class TestsService {
     @InjectRepository(Stimulus) private readonly stimuli: Repository<Stimulus>,
     @InjectRepository(Question)
     private readonly questions: Repository<Question>,
+    @InjectRepository(Skill) private readonly skills: Repository<Skill>,
+    @InjectRepository(QuestionSkill)
+    private readonly questionSkills: Repository<QuestionSkill>,
     private readonly dataSource: DataSource,
   ) {}
+
+  /** The full TOEIC skill taxonomy for the tagging picker. */
+  listSkills(): Promise<Skill[]> {
+    return this.skills.find({ order: { category: 'ASC', code: 'ASC' } });
+  }
+
+  /**
+   * Knowledge-graph view (docs/adr-knowledge-graph.md): skills + tagged
+   * questions as nodes, (:Question)-[:TESTS]->(:Skill) as links. Sourced from
+   * Postgres (Phase 1) — the same shape a Neo4j projection would later serve.
+   */
+  async getKnowledgeGraph(): Promise<{
+    nodes: {
+      id: string;
+      kind: 'skill' | 'question';
+      label: string;
+      category?: string;
+      part?: number;
+    }[];
+    links: { source: string; target: string }[];
+  }> {
+    const skills = await this.skills.find({ order: { code: 'ASC' } });
+    const rows: {
+      question_id: string;
+      skill_id: string;
+      question_text: string | null;
+      part_number: number;
+    }[] = await this.questionSkills
+      .createQueryBuilder('qs')
+      .innerJoin(Question, 'q', 'q.id = qs.question_id')
+      .innerJoin(Part, 'p', 'p.id = q.part_id')
+      .select('qs.question_id', 'question_id')
+      .addSelect('qs.skill_id', 'skill_id')
+      .addSelect('q.question_text', 'question_text')
+      .addSelect('p.part_number', 'part_number')
+      .getRawMany();
+
+    const nodes: {
+      id: string;
+      kind: 'skill' | 'question';
+      label: string;
+      category?: string;
+      part?: number;
+    }[] = skills.map((s) => ({
+      id: `s:${s.id}`,
+      kind: 'skill',
+      label: s.code,
+      category: s.category,
+    }));
+
+    const seen = new Set<string>();
+    const links: { source: string; target: string }[] = [];
+    for (const r of rows) {
+      if (!seen.has(r.question_id)) {
+        seen.add(r.question_id);
+        nodes.push({
+          id: `q:${r.question_id}`,
+          kind: 'question',
+          label: (r.question_text ?? 'Q').slice(0, 40) || 'Q',
+          part: r.part_number,
+        });
+      }
+      links.push({ source: `q:${r.question_id}`, target: `s:${r.skill_id}` });
+    }
+    return { nodes, links };
+  }
+
+  /** All Question->Skill tags for a test, keyed by question id (for the editor). */
+  async getTestQuestionSkills(
+    testId: string,
+    userId: string,
+    role: UserRole,
+  ): Promise<Record<string, { skillId: string; code: string; name: string }[]>> {
+    await this.assertOwner(testId, userId, role);
+    const rows: {
+      question_id: string;
+      skill_id: string;
+      code: string;
+      name: string;
+    }[] = await this.questionSkills
+      .createQueryBuilder('qs')
+      .innerJoin(Question, 'q', 'q.id = qs.question_id')
+      .innerJoin(Part, 'p', 'p.id = q.part_id')
+      .innerJoin(Skill, 's', 's.id = qs.skill_id')
+      .select('qs.question_id', 'question_id')
+      .addSelect('qs.skill_id', 'skill_id')
+      .addSelect('s.code', 'code')
+      .addSelect('s.name', 'name')
+      .where('p.test_id = :testId', { testId })
+      .orderBy('s.code', 'ASC')
+      .getRawMany();
+
+    const map: Record<string, { skillId: string; code: string; name: string }[]> = {};
+    for (const r of rows) {
+      (map[r.question_id] ??= []).push({
+        skillId: r.skill_id,
+        code: r.code,
+        name: r.name,
+      });
+    }
+    return map;
+  }
+
+  /** Replace the skill tags on a question (teacher tagging; source='human'). */
+  async setQuestionSkills(
+    testId: string,
+    partId: string,
+    questionId: string,
+    userId: string,
+    role: UserRole,
+    skillIds: string[],
+  ): Promise<{ skillIds: string[] }> {
+    await this.loadOwnedPart(testId, partId, userId, role);
+    const question = await this.questions.findOne({
+      where: { id: questionId, partId },
+    });
+    if (!question) throw new NotFoundException('Question not found in this part');
+
+    const unique = [...new Set(skillIds)];
+    if (unique.length > 0) {
+      const found = await this.skills.count({ where: { id: In(unique) } });
+      if (found !== unique.length) {
+        throw new BadRequestException('One or more skills do not exist');
+      }
+    }
+
+    await this.dataSource.transaction(async (manager) => {
+      await manager.delete(QuestionSkill, { questionId });
+      if (unique.length > 0) {
+        await manager.save(
+          unique.map((skillId) =>
+            manager.create(QuestionSkill, {
+              questionId,
+              skillId,
+              source: 'human',
+            }),
+          ),
+        );
+      }
+    });
+    return { skillIds: unique };
+  }
 
   /** Create a draft test and auto-scaffold the 7 TOEIC parts (REQ-010). */
   async createTest(userId: string, dto: CreateTestDto): Promise<Test> {

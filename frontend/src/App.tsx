@@ -15,6 +15,7 @@ import { MyResultsPage } from './routes/review/MyResultsPage';
 import { AttemptReviewPage } from './routes/review/AttemptReviewPage';
 import { AuthoringListPage } from './routes/authoring/AuthoringListPage';
 import { TestEditorPage } from './routes/authoring/TestEditorPage';
+import { KnowledgeGraphPage } from './routes/graph/KnowledgeGraphPage';
 import { UserManagementPage } from './routes/admin/UserManagementPage';
 import { ExamFilesPage } from './routes/exam-files/ExamFilesPage';
 import { ExamFileReviewPage } from './routes/exam-files/ExamFileReviewPage';
@@ -71,6 +72,7 @@ export default function App() {
         <Route element={<ProtectedRoute roles={['teacher', 'admin']} />}>
           <Route path="/authoring" element={<AuthoringListPage />} />
           <Route path="/authoring/:testId" element={<TestEditorPage />} />
+          <Route path="/graph" element={<KnowledgeGraphPage />} />
           <Route path="/exam-files" element={<ExamFilesPage />} />
           <Route path="/exam-files/:id/review" element={<ExamFileReviewPage />} />
         </Route>

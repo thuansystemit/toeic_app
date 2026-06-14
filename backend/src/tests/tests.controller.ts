@@ -7,6 +7,7 @@ import {
   ParseUUIDPipe,
   Patch,
   Post,
+  Put,
   UseGuards,
 } from '@nestjs/common';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
@@ -38,10 +39,50 @@ export class TestsController {
 
   // --- Author-facing ---
 
+  @Get('skills')
+  @Roles('teacher', 'admin')
+  listSkills() {
+    return this.testsService.listSkills();
+  }
+
+  @Get('graph')
+  @Roles('teacher', 'admin')
+  knowledgeGraph() {
+    return this.testsService.getKnowledgeGraph();
+  }
+
   @Post()
   @Roles('teacher', 'admin')
   create(@CurrentUser() user: AuthenticatedUser, @Body() dto: CreateTestDto) {
     return this.testsService.createTest(user.id, dto);
+  }
+
+  @Get(':id/question-skills')
+  @Roles('teacher', 'admin')
+  questionSkills(
+    @CurrentUser() user: AuthenticatedUser,
+    @Param('id', ParseUUIDPipe) id: string,
+  ) {
+    return this.testsService.getTestQuestionSkills(id, user.id, user.role);
+  }
+
+  @Put(':id/parts/:partId/questions/:questionId/skills')
+  @Roles('teacher', 'admin')
+  setQuestionSkills(
+    @CurrentUser() user: AuthenticatedUser,
+    @Param('id', ParseUUIDPipe) id: string,
+    @Param('partId', ParseUUIDPipe) partId: string,
+    @Param('questionId', ParseUUIDPipe) questionId: string,
+    @Body() body: { skillIds: string[] },
+  ) {
+    return this.testsService.setQuestionSkills(
+      id,
+      partId,
+      questionId,
+      user.id,
+      user.role,
+      body.skillIds ?? [],
+    );
   }
 
   @Get('mine')

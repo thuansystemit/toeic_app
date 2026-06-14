@@ -8,13 +8,24 @@ import {
   deleteQuestion,
   getAuthoringView,
   getPartSummaries,
+  getQuestionSkills,
+  listSkills,
   publishPart,
   publishTest,
+  setQuestionSkills,
   unpublishPart,
   unpublishTest,
   updateQuestion,
 } from '../../api/tests.api';
-import type { MediaStimulusInput, NewQuestionInput, PartSummary, TestDto } from '../../types/test';
+import type {
+  MediaStimulusInput,
+  NewQuestionInput,
+  PartSummary,
+  QuestionSkillsMap,
+  QuestionSkillTag,
+  Skill,
+  TestDto,
+} from '../../types/test';
 import { uploadFile } from '../../api/files.api';
 import { Icon } from '../../components/Icon';
 
@@ -29,11 +40,23 @@ export function TestEditorPage() {
   const [openPart, setOpenPart] = useState<string | null>(null);
   const [editing, setEditing] = useState<string | null>(null);
   const [msg, setMsg] = useState<{ text: string; ok: boolean } | null>(null);
+  const [skills, setSkills] = useState<Skill[]>([]);
+  const [questionSkills, setQuestionSkillsState] = useState<QuestionSkillsMap>({});
 
   const load = async () => {
     if (!testId) return;
     setTest(await getAuthoringView(testId));
     setSummaries(await getPartSummaries(testId));
+    setQuestionSkillsState(await getQuestionSkills(testId));
+  };
+  useEffect(() => {
+    listSkills().then(setSkills).catch(() => undefined);
+  }, []);
+
+  const onTagSkills = async (partId: string, questionId: string, skillIds: string[]) => {
+    if (!testId) return;
+    await setQuestionSkills(testId, partId, questionId, skillIds);
+    setQuestionSkillsState(await getQuestionSkills(testId));
   };
   useEffect(() => {
     void load();
@@ -112,6 +135,8 @@ export function TestEditorPage() {
           {msg.text}
         </p>
       )}
+
+      <SkillCoverage questionSkills={questionSkills} />
 
       <div className="mt-5 grid gap-3">
         {test.parts
@@ -209,6 +234,11 @@ export function TestEditorPage() {
                                 </div>
                               )}
                             </div>
+                            <SkillTags
+                              catalog={skills}
+                              tags={questionSkills[q.id] ?? []}
+                              onChange={(ids) => onTagSkills(part.id, q.id, ids)}
+                            />
                             {isEditing && (
                               <QuestionForm
                                 initial={{
@@ -255,6 +285,110 @@ export function TestEditorPage() {
           })}
       </div>
     </AppLayout>
+  );
+}
+
+/** Skill tags for one question: chips + an add-picker (knowledge-graph Phase 1). */
+function SkillTags({
+  catalog,
+  tags,
+  onChange,
+}: {
+  catalog: Skill[];
+  tags: QuestionSkillTag[];
+  onChange: (skillIds: string[]) => Promise<void>;
+}) {
+  const { t } = useTranslation(['test']);
+  const [busy, setBusy] = useState(false);
+  const current = tags.map((s) => s.skillId);
+  const available = catalog.filter((s) => !current.includes(s.id));
+
+  const apply = async (ids: string[]) => {
+    setBusy(true);
+    try {
+      await onChange(ids);
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <div className="mt-2 flex flex-wrap items-center gap-1.5">
+      <span className="text-xs font-bold text-slate-400">{t('skills')}:</span>
+      {tags.length === 0 && (
+        <span className="text-xs text-slate-300">{t('noSkills')}</span>
+      )}
+      {tags.map((s) => (
+        <span
+          key={s.skillId}
+          title={s.name}
+          className="inline-flex items-center gap-1 rounded-full bg-brand-50 px-2 py-0.5 text-xs font-semibold text-brand-700"
+        >
+          {s.code}
+          <button
+            type="button"
+            disabled={busy}
+            onClick={() => apply(current.filter((id) => id !== s.skillId))}
+            className="text-brand-400 hover:text-rose-500"
+            aria-label={`remove ${s.code}`}
+          >
+            ×
+          </button>
+        </span>
+      ))}
+      {available.length > 0 && (
+        <select
+          value=""
+          disabled={busy}
+          onChange={(e) => e.target.value && apply([...current, e.target.value])}
+          className="rounded-full border border-slate-200 bg-white px-2 py-0.5 text-xs text-slate-500"
+        >
+          <option value="">+ {t('addSkill')}</option>
+          {available.map((s) => (
+            <option key={s.id} value={s.id}>
+              {s.code} — {s.name}
+            </option>
+          ))}
+        </select>
+      )}
+    </div>
+  );
+}
+
+/** Skill-coverage summary across the whole test (verification at a glance). */
+function SkillCoverage({ questionSkills }: { questionSkills: QuestionSkillsMap }) {
+  const { t } = useTranslation(['test']);
+  const counts = new Map<string, { name: string; n: number }>();
+  for (const tags of Object.values(questionSkills)) {
+    for (const s of tags) {
+      const e = counts.get(s.code) ?? { name: s.name, n: 0 };
+      e.n += 1;
+      counts.set(s.code, e);
+    }
+  }
+  const rows = [...counts.entries()].sort((a, b) => b[1].n - a[1].n);
+
+  return (
+    <div className="card mt-4 p-4">
+      <div className="mb-2 flex items-center gap-2 text-sm font-bold text-slate-600">
+        <Icon name="results" /> {t('skillCoverage')}
+      </div>
+      {rows.length === 0 ? (
+        <p className="text-xs text-slate-400">{t('noSkillsTagged')}</p>
+      ) : (
+        <div className="flex flex-wrap gap-1.5">
+          {rows.map(([code, { name, n }]) => (
+            <span
+              key={code}
+              title={name}
+              className="inline-flex items-center gap-1 rounded-full bg-slate-100 px-2 py-0.5 text-xs font-semibold text-slate-600"
+            >
+              {code} <span className="text-brand-600">×{n}</span>
+            </span>
+          ))}
+        </div>
+      )}
+    </div>
   );
 }
 

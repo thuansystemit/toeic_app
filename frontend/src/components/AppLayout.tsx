@@ -30,6 +30,7 @@ export function AppLayout({ children }: { children: ReactNode }) {
       ? [
           { to: '/authoring', label: t('navAuthoring') },
           { to: '/exam-files', label: t('navImport') },
+          { to: '/graph', label: t('navGraph') },
         ]
       : []),
     ...(isAdmin ? [{ to: '/admin/users', label: t('navAdmin') }] : []),
