@@ -72,6 +72,10 @@ export class LocalDiskAdapter implements FileStorageAdapter {
       '.png': 'image/png',
       '.gif': 'image/gif',
       '.webp': 'image/webp',
+      // Exam-file documents (consumed by the extraction worker).
+      '.pdf': 'application/pdf',
+      '.docx':
+        'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
     };
     return map[ext] ?? 'application/octet-stream';
   }

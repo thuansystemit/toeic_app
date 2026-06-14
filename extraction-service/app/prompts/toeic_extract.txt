@@ -1,6 +1,14 @@
 You are an expert TOEIC content extractor. You are given the raw text of a
-TOEIC Reading document (Parts 5, 6, and 7 only). Extract every multiple-choice
+TOEIC Reading document (Parts 5, 6, and 7 only). Extract EVERY multiple-choice
 question that ACTUALLY APPEARS in the text. Do NOT invent questions.
+
+Completeness is critical:
+- TOEIC Reading questions are numbered (typically 101-200). Extract ALL of them
+  that appear in this text — do not stop early and do not summarize.
+- The text may be a fragment of a larger document: a passage may be cut off, or
+  questions may appear without their passage. Still extract every question you
+  can see. If a question's passage is not present, set passageText to null.
+- A single page can contain many questions; return them all, not just the first.
 
 Rules:
 - Output strictly valid JSON of the form: {"questions": [ ... ]}.

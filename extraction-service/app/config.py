@@ -29,9 +29,10 @@ class Settings:
     max_chars: int = int(os.environ.get("MAX_TEXT_CHARS", "120000"))
     min_chars: int = int(os.environ.get("MIN_TEXT_CHARS", "40"))
 
-    # Chunking (EDIES §9)
-    chunk_tokens: int = int(os.environ.get("CHUNK_TOKENS", "1000"))
-    chunk_overlap: int = int(os.environ.get("CHUNK_OVERLAP", "150"))
+    # Chunking (EDIES §9). Generous overlap so a Part 6/7 passage and the
+    # questions that reference it (often a page apart) co-occur in a chunk.
+    chunk_tokens: int = int(os.environ.get("CHUNK_TOKENS", "1200"))
+    chunk_overlap: int = int(os.environ.get("CHUNK_OVERLAP", "300"))
 
     # Quality gate (EDIES §12, §22): below this -> flag for human review.
     low_confidence_threshold: float = float(os.environ.get("LOW_CONFIDENCE", "0.6"))

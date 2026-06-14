@@ -91,8 +91,10 @@ def strip_injection(text: str) -> str:
     """EDIES §13: treat document text as untrusted; defang injection lines."""
     bad = ("ignore previous", "ignore all previous", "system prompt", "you are now",
            "disregard the above", "new instructions:")
+    # Split on "\n" only (NOT splitlines, which also breaks on "\f" and would
+    # strip the page markers the chunker relies on to keep documents splittable).
     return "\n".join(
-        line for line in text.splitlines() if not any(b in line.lower() for b in bad)
+        line for line in text.split("\n") if not any(b in line.lower() for b in bad)
     )
 
 

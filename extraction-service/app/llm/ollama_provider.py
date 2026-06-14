@@ -17,6 +17,9 @@ class OllamaProvider:
                 "model": self.model,
                 "format": "json",  # constrains output to valid JSON
                 "stream": False,
+                # Default context (2048) comfortably fits a ~1000-token chunk +
+                # the system prompt; a larger window only slows generation on
+                # CPU-bound Ollama hosts (and risked request timeouts).
                 "options": {"temperature": 0},
                 "messages": [
                     {"role": "system", "content": system_prompt},

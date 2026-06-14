@@ -75,23 +75,46 @@ def run_extraction(
     questions: list[ExtractedQuestion] = []
     warnings: list[str] = []
     skipped = 0
-    try:
-        for ch in chunks:
+    chunk_errors = 0
+    for ch in chunks:
+        # One slow/failed chunk (e.g. an LLM timeout) must not discard the
+        # questions already extracted from the others — isolate per chunk.
+        try:
             raw_json = provider.extract_json(system, ch.content)
             parsed = json.loads(raw_json)
-            for i, q in enumerate(parsed.get("questions", [])):
-                try:
-                    eq = ExtractedQuestion(**q)
-                    if eq.sourcePage is None:
-                        eq.sourcePage = ch.page_start
-                    questions.append(eq)
-                except Exception as e:
-                    skipped += 1
-                    warnings.append(f"chunk {ch.index} q{i + 1} skipped: {e}")
-    except ExtractionError:
-        raise
-    except Exception as e:
-        raise ExtractionError(ErrorCode.LLM_EXTRACTION_FAILED, str(e))
+        except Exception as e:
+            chunk_errors += 1
+            warnings.append(f"chunk {ch.index} failed: {e}")
+            continue
+        for i, q in enumerate(parsed.get("questions", [])):
+            try:
+                eq = ExtractedQuestion(**q)
+                if eq.sourcePage is None:
+                    eq.sourcePage = ch.page_start
+                questions.append(eq)
+            except Exception as e:
+                skipped += 1
+                warnings.append(f"chunk {ch.index} q{i + 1} skipped: {e}")
+
+    # Only treat the job as failed if every chunk errored (nothing usable).
+    if chunks and chunk_errors == len(chunks):
+        raise ExtractionError(
+            ErrorCode.LLM_EXTRACTION_FAILED,
+            warnings[-1] if warnings else "all chunks failed",
+        )
+
+    # Overlapping chunks (and repeated passages) can surface the same question
+    # twice — keep the first occurrence, keyed by part + normalized stem.
+    deduped: list[ExtractedQuestion] = []
+    seen: set[tuple[int, str]] = set()
+    for q in questions:
+        stem = " ".join((q.questionText or "").lower().split())
+        key = (q.part, stem)
+        if stem and key in seen:
+            continue
+        seen.add(key)
+        deduped.append(q)
+    questions = deduped
 
     # 5. output validation + quality gate (EDIES §12, §22)
     stage("VALIDATING_OUTPUT")

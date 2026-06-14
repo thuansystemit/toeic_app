@@ -25,37 +25,56 @@ def _estimate_tokens(text: str) -> int:
 
 
 def chunk_text(text: str, max_tokens: int = 1000, overlap_tokens: int = 150) -> List[Chunk]:
+    """Line-aware sliding chunker with page tracking.
+
+    Breaks only at line boundaries so a question stem or an "(A) ... (D)" choice
+    line is never split across chunks. A generous trailing overlap means a Part
+    6/7 passage and the questions that reference it (often on the next page) land
+    together in at least one chunk. Each line keeps its page number so a chunk
+    can report the page range it spans; the pipeline de-duplicates the questions
+    that the overlap inevitably repeats.
+    """
     pages = text.split(PAGE_MARKER) if PAGE_MARKER in text else [text]
 
-    chunks: List[Chunk] = []
-    buf: List[str] = []
-    buf_tokens = 0
-    page_start = 1
-    page_no = 0
+    # Flatten to (line, page_no); windowing is independent of page sizes and a
+    # single oversized page is still split (DOCX has no page markers at all).
+    lines: List[tuple[str, int]] = []
+    for page_no, page in enumerate(pages, start=1):
+        for line in page.split("\n"):
+            lines.append((line, page_no))
 
-    def flush(p_start: int, p_end: int) -> None:
-        nonlocal buf, buf_tokens
-        if not buf:
-            return
-        content = "\n".join(buf).strip()
+    if not lines:
+        return [Chunk(0, 1, len(pages), text.strip(), _estimate_tokens(text))]
+
+    chunks: List[Chunk] = []
+    n = len(lines)
+    i = 0
+    while i < n:
+        # Grow the window line by line until the token budget is reached.
+        j, tokens = i, 0
+        while j < n and tokens < max_tokens:
+            tokens += max(1, _estimate_tokens(lines[j][0]))
+            j += 1
+        window = lines[i:j]
+        content = "\n".join(ln for ln, _ in window).strip()
         if content:
             chunks.append(
-                Chunk(len(chunks), p_start, p_end, content, _estimate_tokens(content))
+                Chunk(
+                    len(chunks),
+                    window[0][1],
+                    window[-1][1],
+                    content,
+                    _estimate_tokens(content),
+                )
             )
-        # carry overlap from the tail of this chunk
-        tail = " ".join(content.split()[-int(overlap_tokens * 0.75):])
-        buf = [tail] if tail else []
-        buf_tokens = _estimate_tokens(tail)
-
-    for i, page in enumerate(pages, start=1):
-        page_no = i
-        if not buf:
-            page_start = i
-        buf.append(page)
-        buf_tokens += _estimate_tokens(page)
-        if buf_tokens >= max_tokens:
-            flush(page_start, page_no)
-            page_start = page_no
-
-    flush(page_start, page_no or 1)
-    return chunks or [Chunk(0, 1, page_no or 1, text.strip(), _estimate_tokens(text))]
+        if j >= n:
+            break
+        # Step back over ~overlap_tokens of trailing lines for the next chunk,
+        # but always make forward progress.
+        back, ov, k = 0, 0, j - 1
+        while k > i and ov < overlap_tokens:
+            ov += max(1, _estimate_tokens(lines[k][0]))
+            k -= 1
+            back += 1
+        i = max(i + 1, j - back)
+    return chunks

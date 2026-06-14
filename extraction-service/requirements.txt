@@ -3,6 +3,11 @@ requests==2.32.3
 pdfplumber==0.11.4
 python-docx==1.1.2
 pydantic==2.9.2
+# OCR fallback for scanned (image-only) PDFs: render with PyMuPDF, recognise
+# with Tesseract (the tesseract-ocr binary is installed in the Dockerfile).
+PyMuPDF==1.24.10
+pytesseract==0.3.13
+Pillow==10.4.0
 # Optional LLM provider SDKs (used by the respective adapters):
 anthropic==0.69.0
 openai==1.51.2
