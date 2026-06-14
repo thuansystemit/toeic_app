@@ -21,3 +21,7 @@ uploads/
 
 # vite
 frontend/dist/
+*.tsbuildinfo
+
+# local-only compose overrides (machine-specific ports/hosts)
+docker-compose.override.yml
