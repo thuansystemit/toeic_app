@@ -1,5 +1,6 @@
 import { Navigate, Outlet } from 'react-router-dom';
 import { useAuthStore } from '../store/authStore';
+import { IdleTimeout } from './IdleTimeout';
 import type { UserRole } from '../types/user';
 
 interface Props {
@@ -15,5 +16,10 @@ export function ProtectedRoute({ roles }: Props) {
   if (roles && user && !roles.includes(user.role)) {
     return <Navigate to="/" replace />;
   }
-  return <Outlet />;
+  return (
+    <>
+      <IdleTimeout />
+      <Outlet />
+    </>
+  );
 }

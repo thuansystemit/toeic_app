@@ -11,15 +11,39 @@ const FACEBOOK_ID = import.meta.env.VITE_FACEBOOK_APP_ID as string | undefined;
 
 function loadScript(src: string, id: string): Promise<void> {
   return new Promise((resolve, reject) => {
-    if (document.getElementById(id)) return resolve();
+    const existing = document.getElementById(id) as HTMLScriptElement | null;
+    if (existing) {
+      // Element may exist but not have finished loading yet — wait for it.
+      if (existing.dataset.loaded === 'true') return resolve();
+      existing.addEventListener('load', () => resolve(), { once: true });
+      existing.addEventListener('error', () => reject(new Error(`Failed to load ${src}`)), { once: true });
+      return;
+    }
     const s = document.createElement('script');
     s.src = src;
     s.id = id;
     s.async = true;
     s.defer = true;
-    s.onload = () => resolve();
+    s.onload = () => {
+      s.dataset.loaded = 'true';
+      resolve();
+    };
     s.onerror = () => reject(new Error(`Failed to load ${src}`));
     document.head.appendChild(s);
+  });
+}
+
+/** Resolve once the GSI library has attached to window, polling briefly. */
+function waitForGoogle(timeoutMs = 5000): Promise<any> {
+  return new Promise((resolve, reject) => {
+    const start = Date.now();
+    const tick = () => {
+      const g = (window as any).google;
+      if (g?.accounts?.id) return resolve(g);
+      if (Date.now() - start > timeoutMs) return reject(new Error('Google Identity Services unavailable'));
+      setTimeout(tick, 50);
+    };
+    tick();
   });
 }
 
@@ -47,10 +71,9 @@ export function SocialAuth({
     if (!GOOGLE_ID) return;
     let cancelled = false;
     loadScript('https://accounts.google.com/gsi/client', 'gsi-script')
-      .then(() => {
+      .then(() => waitForGoogle())
+      .then((g) => {
         if (cancelled) return;
-        const g = (window as any).google;
-        if (!g?.accounts?.id) return;
         g.accounts.id.initialize({
           client_id: GOOGLE_ID,
           callback: async (resp: { credential: string }) => {
