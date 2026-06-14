@@ -81,8 +81,11 @@ export class AttemptsService {
       throw new BadRequestException('partId is required for practice mode');
     }
     if (dto.mode === 'practice' && dto.partId) {
-      const ok = test.parts.some((p) => p.id === dto.partId);
-      if (!ok) throw new BadRequestException('partId does not belong to this test');
+      const part = test.parts.find((p) => p.id === dto.partId);
+      if (!part) throw new BadRequestException('partId does not belong to this test');
+      if (part.status !== 'published') {
+        throw new ForbiddenException('This part is not published');
+      }
     }
 
     const expiresAt =

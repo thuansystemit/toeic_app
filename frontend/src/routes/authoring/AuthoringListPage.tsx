@@ -2,7 +2,7 @@ import { FormEvent, useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Link } from 'react-router-dom';
 import { AppLayout } from '../../components/AppLayout';
-import { createTest, listMyTests } from '../../api/tests.api';
+import { createTest, deleteTest, listMyTests } from '../../api/tests.api';
 import type { TestDto } from '../../types/test';
 import { Icon } from '../../components/Icon';
 
@@ -13,11 +13,28 @@ export function AuthoringListPage() {
   const [description, setDescription] = useState('');
   const [timeLimit, setTimeLimit] = useState(120);
   const [creating, setCreating] = useState(false);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
 
   const load = () => listMyTests().then(setTests);
   useEffect(() => {
     void load();
   }, []);
+
+  const onDelete = async (test: TestDto) => {
+    if (!confirm(t('deleteTestConfirm', { title: test.title }))) return;
+    setDeletingId(test.id);
+    try {
+      await deleteTest(test.id);
+      await load();
+    } catch (err) {
+      const message =
+        (err as { response?: { data?: { message?: string } } }).response?.data
+          ?.message ?? t('deleteTestFailed');
+      alert(message);
+    } finally {
+      setDeletingId(null);
+    }
+  };
 
   const onCreate = async (e: FormEvent) => {
     e.preventDefault();
@@ -63,12 +80,11 @@ export function AuthoringListPage() {
       ) : (
         <div className="grid gap-3">
           {tests.map((test) => (
-            <Link
+            <div
               key={test.id}
-              to={`/authoring/${test.id}`}
               className="card flex items-center justify-between p-4 transition hover:-translate-y-0.5 hover:shadow-soft"
             >
-              <div className="flex items-center gap-3">
+              <Link to={`/authoring/${test.id}`} className="flex flex-1 items-center gap-3">
                 <span className="grid h-11 w-11 place-items-center rounded-2xl bg-brand-50 text-xl text-brand-600">
                   <Icon name="tests" />
                 </span>
@@ -78,11 +94,23 @@ export function AuthoringListPage() {
                     <Icon name="timer" /> {test.timeLimitMinutes} min
                   </div>
                 </div>
+              </Link>
+              <div className="flex items-center gap-3">
+                <span className={test.status === 'published' ? 'badge-green' : 'badge-slate'}>
+                  {test.status === 'published' ? t('statusPublished') : t('statusDraft')}
+                </span>
+                <button
+                  type="button"
+                  onClick={() => onDelete(test)}
+                  disabled={deletingId === test.id}
+                  aria-label={t('delete')}
+                  title={t('delete')}
+                  className="grid h-9 w-9 place-items-center rounded-xl text-slate-400 transition hover:bg-red-50 hover:text-red-600 disabled:opacity-50"
+                >
+                  <Icon name={deletingId === test.id ? 'spinner' : 'trash'} />
+                </button>
               </div>
-              <span className={test.status === 'published' ? 'badge-green' : 'badge-slate'}>
-                {test.status === 'published' ? t('statusPublished') : t('statusDraft')}
-              </span>
-            </Link>
+            </div>
           ))}
         </div>
       )}

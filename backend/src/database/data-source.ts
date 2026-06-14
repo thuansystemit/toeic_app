@@ -21,6 +21,7 @@ import { TestAttemptScoring1700000001000 } from './migrations/1700000001000-Test
 import { QuestionStimuli1700000002000 } from './migrations/1700000002000-QuestionStimuli';
 import { SocialAuth1700000003000 } from './migrations/1700000003000-SocialAuth';
 import { ExamFiles1700000004000 } from './migrations/1700000004000-ExamFiles';
+import { PartStatus1700000005000 } from './migrations/1700000005000-PartStatus';
 
 // Load backend/.env when running the TypeORM CLI outside of Nest's runtime.
 loadEnv();
@@ -55,6 +56,7 @@ export const AppDataSource = new DataSource({
     QuestionStimuli1700000002000,
     SocialAuth1700000003000,
     ExamFiles1700000004000,
+    PartStatus1700000005000,
   ],
   synchronize: false,
   logging: false,

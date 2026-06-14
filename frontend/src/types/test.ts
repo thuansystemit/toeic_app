@@ -1,4 +1,5 @@
 export type TestStatus = 'draft' | 'published';
+export type PartStatus = 'draft' | 'published';
 export type Section = 'listening' | 'reading';
 
 export interface PartSummary {
@@ -27,6 +28,7 @@ export interface PartDto {
   partNumber: number;
   section: Section;
   targetQuestionCount: number;
+  status: PartStatus;
   questions?: QuestionDto[];
 }
 

@@ -72,6 +72,24 @@ export async function deleteQuestion(
   await api.delete(`/tests/${testId}/parts/${partId}/questions/${questionId}`);
 }
 
+export async function deleteTest(testId: string): Promise<void> {
+  await api.delete(`/tests/${testId}`);
+}
+
+export async function publishPart(
+  testId: string,
+  partId: string,
+): Promise<void> {
+  await api.post(`/tests/${testId}/parts/${partId}/publish`);
+}
+
+export async function unpublishPart(
+  testId: string,
+  partId: string,
+): Promise<void> {
+  await api.post(`/tests/${testId}/parts/${partId}/unpublish`);
+}
+
 export async function publishTest(testId: string): Promise<TestDto> {
   const res = await api.post<TestDto>(`/tests/${testId}/publish`);
   return res.data;

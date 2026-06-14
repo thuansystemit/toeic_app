@@ -112,6 +112,35 @@ export class TestsController {
     );
   }
 
+  @Delete(':id')
+  @Roles('teacher', 'admin')
+  remove(
+    @CurrentUser() user: AuthenticatedUser,
+    @Param('id', ParseUUIDPipe) id: string,
+  ) {
+    return this.testsService.deleteTest(id, user.id, user.role);
+  }
+
+  @Post(':id/parts/:partId/publish')
+  @Roles('teacher', 'admin')
+  publishPart(
+    @CurrentUser() user: AuthenticatedUser,
+    @Param('id', ParseUUIDPipe) id: string,
+    @Param('partId', ParseUUIDPipe) partId: string,
+  ) {
+    return this.testsService.publishPart(id, partId, user.id, user.role);
+  }
+
+  @Post(':id/parts/:partId/unpublish')
+  @Roles('teacher', 'admin')
+  unpublishPart(
+    @CurrentUser() user: AuthenticatedUser,
+    @Param('id', ParseUUIDPipe) id: string,
+    @Param('partId', ParseUUIDPipe) partId: string,
+  ) {
+    return this.testsService.unpublishPart(id, partId, user.id, user.role);
+  }
+
   @Post(':id/publish')
   @Roles('teacher', 'admin')
   publish(

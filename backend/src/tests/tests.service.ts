@@ -115,21 +115,8 @@ export class TestsService {
     role: UserRole,
     dto: CreateQuestionDto,
   ): Promise<Question> {
-    const test = await this.tests.findOne({ where: { id: testId } });
-    if (!test) throw new NotFoundException('Test not found');
-    if (test.createdBy !== userId && role !== 'admin') {
-      throw new ForbiddenException('Not your test');
-    }
-    if (test.status !== 'draft') {
-      // ADR-009 / D-009: published tests must be unpublished before editing.
-      throw new BadRequestException(
-        'Test is published; unpublish before editing',
-      );
-    }
-    const part = await this.parts.findOne({
-      where: { id: partId, testId },
-    });
-    if (!part) throw new NotFoundException('Part not found for this test');
+    // ADR-009 / D-009: a published part must be unpublished before editing.
+    await this.assertPartEditable(testId, partId, userId, role);
 
     // REQ-017: exactly one correct choice, labels A-D unique.
     const correct = dto.choices.filter((c) => c.isCorrect).length;
@@ -214,8 +201,7 @@ export class TestsService {
     role: UserRole,
     dto: UpdateQuestionDto,
   ): Promise<Question> {
-    const test = await this.assertEditable(testId, userId, role);
-    void test;
+    await this.assertPartEditable(testId, partId, userId, role);
     const question = await this.questions.findOne({
       where: { id: questionId, partId },
     });
@@ -259,13 +245,38 @@ export class TestsService {
     userId: string,
     role: UserRole,
   ): Promise<{ deleted: boolean }> {
-    await this.assertEditable(testId, userId, role);
+    await this.assertPartEditable(testId, partId, userId, role);
     const question = await this.questions.findOne({
       where: { id: questionId, partId },
     });
     if (!question) throw new NotFoundException('Question not found in this part');
     // Choices and stimuli cascade via FK ON DELETE CASCADE.
     await this.questions.delete({ id: questionId });
+    return { deleted: true };
+  }
+
+  /**
+   * Delete a whole test from the owner's library (REQ: manage test library).
+   * Force delete: attempts (and their answers, audio plays and scores via their
+   * own ON DELETE CASCADE) are removed first, then the test — whose parts,
+   * questions, choices and stimuli cascade. exam_files.test_id is nulled by its
+   * own FK. The attempts must be cleared explicitly because attempts.test_id has
+   * no cascade rule.
+   */
+  async deleteTest(
+    testId: string,
+    userId: string,
+    role: UserRole,
+  ): Promise<{ deleted: boolean }> {
+    const test = await this.tests.findOne({ where: { id: testId } });
+    if (!test) throw new NotFoundException('Test not found');
+    if (test.createdBy !== userId && role !== 'admin') {
+      throw new ForbiddenException('Not your test');
+    }
+    await this.dataSource.transaction(async (manager) => {
+      await manager.query(`DELETE FROM attempts WHERE test_id = $1`, [testId]);
+      await manager.delete(Test, { id: testId });
+    });
     return { deleted: true };
   }
 
@@ -282,7 +293,7 @@ export class TestsService {
       choices: { label: 'A' | 'B' | 'C' | 'D'; text: string; isCorrect: boolean }[];
     }[],
   ): Promise<{ imported: number; byPart: Record<number, number> }> {
-    await this.assertEditable(testId, userId, role);
+    await this.assertOwner(testId, userId, role);
     const parts = await this.parts.find({ where: { testId } });
     const partByNumber = new Map(parts.map((p) => [p.partNumber, p]));
 
@@ -304,8 +315,17 @@ export class TestsService {
         if (!part) {
           throw new BadRequestException(`Part ${item.part} does not exist in this test`);
         }
-        if (item.choices.filter((c) => c.isCorrect).length !== 1) {
-          throw new BadRequestException('Each question must have exactly one correct choice');
+        if (part.status !== 'draft') {
+          throw new BadRequestException(
+            `Part ${item.part} is published; unpublish it before importing`,
+          );
+        }
+        // Imported source documents often have no answer key, so 0 correct
+        // choices is allowed here — the teacher sets answers in the editor and
+        // the publish guard enforces exactly one before the part goes live.
+        // More than one correct, however, is always a data error.
+        if (item.choices.filter((c) => c.isCorrect).length > 1) {
+          throw new BadRequestException('A question cannot have more than one correct choice');
         }
         if (new Set(item.choices.map((c) => c.label)).size !== 4) {
           throw new BadRequestException('Choices must use distinct labels A, B, C, D');
@@ -349,8 +369,8 @@ export class TestsService {
     });
   }
 
-  /** Load a test and assert the caller may edit it (owner/admin, draft only). */
-  private async assertEditable(
+  /** Load a test and assert the caller owns it (owner/admin), ignoring status. */
+  private async assertOwner(
     testId: string,
     userId: string,
     role: UserRole,
@@ -360,30 +380,103 @@ export class TestsService {
     if (test.createdBy !== userId && role !== 'admin') {
       throw new ForbiddenException('Not your test');
     }
-    if (test.status !== 'draft') {
-      throw new BadRequestException(
-        'Test is published; unpublish before editing',
-      );
-    }
     return test;
   }
 
-  /** Publish guard (REQ-015): every part must have at least one question. */
+  /** Load a part of an owned test (owner/admin), ignoring status. */
+  private async loadOwnedPart(
+    testId: string,
+    partId: string,
+    userId: string,
+    role: UserRole,
+  ): Promise<Part> {
+    await this.assertOwner(testId, userId, role);
+    const part = await this.parts.findOne({ where: { id: partId, testId } });
+    if (!part) throw new NotFoundException('Part not found for this test');
+    return part;
+  }
+
+  /**
+   * Assert the caller may edit a part's questions. Editing is locked per part:
+   * a published part must be unpublished first (the test's own status no longer
+   * gates editing now that parts publish independently).
+   */
+  private async assertPartEditable(
+    testId: string,
+    partId: string,
+    userId: string,
+    role: UserRole,
+  ): Promise<Part> {
+    const part = await this.loadOwnedPart(testId, partId, userId, role);
+    if (part.status !== 'draft') {
+      throw new BadRequestException(
+        'Part is published; unpublish it before editing',
+      );
+    }
+    return part;
+  }
+
+  /**
+   * Publish a single part (REQ-015 per part): it must have ≥1 question and
+   * every question must have exactly one correct answer. The latter lets import
+   * accept answer-less questions while still guaranteeing a published part is
+   * fully scoreable — the teacher fills any missing answers before publishing.
+   */
+  async publishPart(
+    testId: string,
+    partId: string,
+    userId: string,
+    role: UserRole,
+  ): Promise<Part> {
+    const part = await this.loadOwnedPart(testId, partId, userId, role);
+    const questions = await this.questions.find({
+      where: { partId },
+      relations: { choices: true },
+    });
+    if (questions.length === 0) {
+      throw new BadRequestException('Cannot publish a part with no questions');
+    }
+    const unanswered = questions.filter(
+      (q) => q.choices.filter((c) => c.isCorrect).length !== 1,
+    ).length;
+    if (unanswered > 0) {
+      throw new BadRequestException(
+        `Set exactly one correct answer for every question first (${unanswered} still missing)`,
+      );
+    }
+    part.status = 'published';
+    await this.parts.save(part);
+    return part;
+  }
+
+  async unpublishPart(
+    testId: string,
+    partId: string,
+    userId: string,
+    role: UserRole,
+  ): Promise<Part> {
+    const part = await this.loadOwnedPart(testId, partId, userId, role);
+    part.status = 'draft';
+    await this.parts.save(part);
+    return part;
+  }
+
+  /**
+   * Publish guard (per-part model): a test goes live once at least one of its
+   * parts is published, so every library entry has something practiceable.
+   */
   async publish(
     testId: string,
     userId: string,
     role: UserRole,
   ): Promise<Test> {
-    const test = await this.tests.findOne({ where: { id: testId } });
-    if (!test) throw new NotFoundException('Test not found');
-    if (test.createdBy !== userId && role !== 'admin') {
-      throw new ForbiddenException('Not your test');
-    }
-    const summaries = await this.partSummaries(testId);
-    const empty = summaries.filter((s) => s.count === 0).map((s) => s.partNumber);
-    if (empty.length > 0) {
+    const test = await this.assertOwner(testId, userId, role);
+    const publishedParts = await this.parts.count({
+      where: { testId, status: 'published' },
+    });
+    if (publishedParts === 0) {
       throw new BadRequestException(
-        `Cannot publish: parts with no questions: ${empty.join(', ')}`,
+        'Cannot publish: publish at least one part first',
       );
     }
     test.status = 'published';
@@ -440,8 +533,9 @@ export class TestsService {
     if (test.status !== 'published') {
       throw new ForbiddenException('Test is not published');
     }
+    // Only published parts are practiceable (test must be published too, above).
     const parts = await this.parts.find({
-      where: { testId },
+      where: { testId, status: 'published' },
       order: { partNumber: 'ASC' },
     });
     const summaries = await this.partSummaries(testId);

@@ -8,7 +8,9 @@ import {
   deleteQuestion,
   getAuthoringView,
   getPartSummaries,
+  publishPart,
   publishTest,
+  unpublishPart,
   unpublishTest,
   updateQuestion,
 } from '../../api/tests.api';
@@ -56,6 +58,23 @@ export function TestEditorPage() {
     await load();
   };
 
+  const onPublishPart = async (partId: string) => {
+    if (!testId) return;
+    setMsg(null);
+    try {
+      await publishPart(testId, partId);
+      await load();
+    } catch (e) {
+      setMsg({ text: (e as AxiosError<{ message: string }>).response?.data?.message ?? 'Error', ok: false });
+    }
+  };
+
+  const onUnpublishPart = async (partId: string) => {
+    if (!testId) return;
+    await unpublishPart(testId, partId);
+    await load();
+  };
+
   if (!test) return <AppLayout>{t('loading', { ns: 'common' })}</AppLayout>;
 
   const countFor = (partId: string) => summaries.find((s) => s.partId === partId)?.count ?? 0;
@@ -100,9 +119,10 @@ export function TestEditorPage() {
           .sort((a, b) => a.partNumber - b.partNumber)
           .map((part) => {
             const count = countFor(part.id);
+            const partDraft = part.status === 'draft';
             return (
               <div key={part.id} className="card p-5">
-                <div className="flex items-center gap-3">
+                <div className="flex flex-wrap items-center gap-3">
                   <span className="grid h-10 w-10 place-items-center rounded-2xl bg-brand-50 font-extrabold text-brand-700">
                     {part.partNumber}
                   </span>
@@ -112,15 +132,32 @@ export function TestEditorPage() {
                       {part.section} · {t('questionsCount', { count })}
                     </div>
                   </div>
-                  {test.status === 'draft' && (
-                    <button
-                      className="btn-soft btn-sm"
-                      onClick={() => {
-                        setEditing(null);
-                        setOpenPart(openPart === part.id ? null : part.id);
-                      }}
-                    >
-                      {openPart === part.id ? t('cancel', { ns: 'common' }) : `+ ${t('addQuestion')}`}
+                  <span className={partDraft ? 'badge-slate' : 'badge-green'}>
+                    {partDraft ? t('statusDraft') : t('statusPublished')}
+                  </span>
+                  {partDraft ? (
+                    <>
+                      <button
+                        className="btn-soft btn-sm"
+                        onClick={() => {
+                          setEditing(null);
+                          setOpenPart(openPart === part.id ? null : part.id);
+                        }}
+                      >
+                        {openPart === part.id ? t('cancel', { ns: 'common' }) : `+ ${t('addQuestion')}`}
+                      </button>
+                      <button
+                        className="btn-primary btn-sm"
+                        disabled={count === 0}
+                        title={count === 0 ? t('publishPartEmpty') : undefined}
+                        onClick={() => onPublishPart(part.id)}
+                      >
+                        {t('publishPart')}
+                      </button>
+                    </>
+                  ) : (
+                    <button className="btn-ghost btn-sm" onClick={() => onUnpublishPart(part.id)}>
+                      {t('unpublishPart')}
                     </button>
                   )}
                 </div>
@@ -148,7 +185,7 @@ export function TestEditorPage() {
                                   {t('correctAnswerLabel')}: {correct?.label ?? '?'}
                                 </div>
                               </div>
-                              {test.status === 'draft' && (
+                              {partDraft && (
                                 <div className="flex gap-1">
                                   <button
                                     className="btn-ghost btn-sm"

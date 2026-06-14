@@ -12,6 +12,7 @@ import { Test } from './test.entity';
 import { Question } from './question.entity';
 
 export type Section = 'listening' | 'reading';
+export type PartStatus = 'draft' | 'published';
 
 @Entity({ name: 'parts' })
 export class Part {
@@ -33,6 +34,9 @@ export class Part {
 
   @Column({ name: 'target_question_count', type: 'int' })
   targetQuestionCount!: number;
+
+  @Column({ type: 'varchar', length: 20, default: 'draft' })
+  status!: PartStatus;
 
   @OneToMany(() => Question, (question) => question.part)
   questions!: Question[];
