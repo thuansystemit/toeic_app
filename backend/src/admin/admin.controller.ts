@@ -1,6 +1,7 @@
 import {
   Body,
   Controller,
+  Delete,
   Get,
   Param,
   ParseUUIDPipe,
@@ -49,5 +50,13 @@ export class AdminController {
   @Post('users/:userId/reactivate')
   reactivate(@Param('userId', ParseUUIDPipe) userId: string) {
     return this.adminService.reactivate(userId);
+  }
+
+  @Delete('users/:userId')
+  hardDelete(
+    @CurrentUser() admin: AuthenticatedUser,
+    @Param('userId', ParseUUIDPipe) userId: string,
+  ) {
+    return this.adminService.hardDelete(admin.id, userId);
   }
 }

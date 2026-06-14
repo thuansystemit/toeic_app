@@ -438,11 +438,16 @@ export class TestsService {
       passageText?: string;
       explanationVi?: string;
       choices: { label: 'A' | 'B' | 'C' | 'D'; text: string; isCorrect: boolean }[];
+      skills?: string[];
     }[],
   ): Promise<{ imported: number; byPart: Record<number, number> }> {
     await this.assertOwner(testId, userId, role);
     const parts = await this.parts.find({ where: { testId } });
     const partByNumber = new Map(parts.map((p) => [p.partNumber, p]));
+    // Map skill CODE -> id once, to persist the LLM's tags as Question->Skill edges.
+    const skillByCode = new Map(
+      (await this.skills.find()).map((s) => [s.code, s.id]),
+    );
 
     return this.dataSource.transaction(async (manager) => {
       const seqByPart = new Map<string, number>();
@@ -509,6 +514,26 @@ export class TestsService {
             }),
           ),
         );
+        // Persist the LLM's skill tags (knowledge-graph edges); ignore any
+        // codes the model invented that aren't in the taxonomy.
+        const skillIds = [
+          ...new Set(
+            (item.skills ?? [])
+              .map((code) => skillByCode.get(code))
+              .filter((id): id is string => !!id),
+          ),
+        ];
+        if (skillIds.length > 0) {
+          await manager.save(
+            skillIds.map((skillId) =>
+              manager.create(QuestionSkill, {
+                questionId: question.id,
+                skillId,
+                source: 'llm',
+              }),
+            ),
+          );
+        }
         imported += 1;
         byPart[item.part] = (byPart[item.part] ?? 0) + 1;
       }

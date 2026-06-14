@@ -195,6 +195,9 @@ const resources = {
       deactivated: 'Deactivated',
       deactivate: 'Deactivate',
       reactivate: 'Reactivate',
+      delete: 'Delete',
+      deleteConfirm:
+        'Permanently delete {{name}}? This also deletes their tests, attempts and uploaded files. This cannot be undone.',
       you: 'you',
     },
     profile: {
@@ -438,6 +441,9 @@ const resources = {
       deactivated: 'Đã khóa',
       deactivate: 'Khóa',
       reactivate: 'Mở khóa',
+      delete: 'Xóa',
+      deleteConfirm:
+        'Xóa vĩnh viễn {{name}}? Thao tác này cũng xóa các đề, lượt làm bài và tệp đã tải lên của họ. Không thể hoàn tác.',
       you: 'bạn',
     },
     profile: {

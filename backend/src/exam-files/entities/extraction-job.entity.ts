@@ -21,6 +21,7 @@ export interface StagedQuestion {
   questionText: string;
   choices: StagedChoice[];
   explanationVi?: string | null;
+  skills?: string[];
   confidence?: number;
   issues?: string[];
 }

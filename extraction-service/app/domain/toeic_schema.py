@@ -20,6 +20,9 @@ class ExtractedQuestion(BaseModel):
     questionText: str
     choices: List[Choice]
     explanationVi: Optional[str] = None
+    # Skill tags (knowledge-graph): codes from the TOEIC taxonomy, classified by
+    # the same extraction LLM. Persisted as Question->Skill edges on import.
+    skills: List[str] = Field(default_factory=list)
     # --- provenance / quality (EDIES §8, §25) ---
     confidence: float = 1.0
     issues: List[str] = Field(default_factory=list)
@@ -92,6 +95,7 @@ QUESTION_JSON_SCHEMA = {
                         },
                     },
                     "explanationVi": {"type": ["string", "null"]},
+                    "skills": {"type": "array", "items": {"type": "string"}},
                     "sourcePage": {"type": ["integer", "null"]},
                 },
                 "required": ["part", "questionText", "choices"],

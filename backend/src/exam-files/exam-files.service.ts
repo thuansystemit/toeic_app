@@ -141,6 +141,7 @@ export class ExamFilesService {
         passageText: q.passageText,
         explanationVi: q.explanationVi,
         choices: q.choices,
+        skills: q.skills,
       })),
     );
     file.status = 'imported';

@@ -48,3 +48,8 @@ export async function reactivateUser(userId: string): Promise<AdminUser> {
   const res = await api.post<AdminUser>(`/admin/users/${userId}/reactivate`);
   return res.data;
 }
+
+/** Permanently delete a user and all their content (irreversible). */
+export async function hardDeleteUser(userId: string): Promise<void> {
+  await api.delete(`/admin/users/${userId}`);
+}

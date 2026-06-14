@@ -23,6 +23,18 @@ Rules:
     "groupId" (e.g. "p7-1").
   - "explanationVi": a short Vietnamese explanation of why the answer is correct,
     if (and only if) the document provides one; otherwise null.
+  - "skills": an array of 1-3 skill CODES (from the list below) that the question
+    tests. Use ONLY codes from this list; pick the most specific that apply.
+    Grammar: G-TENSE (verb tense), G-SVA (subject-verb agreement), G-PREP
+    (prepositions), G-CONJ (conjunctions/transitions), G-PRON (pronouns), G-RELCL
+    (relative clauses), G-COMP (comparatives), G-WFORM (word form/part of speech),
+    G-VERBAL (gerund/infinitive), G-COND (conditionals), G-VOICE (active/passive),
+    G-DET (articles/determiners), G-MODAL (modals).
+    Lexical: L-VOCAB (vocabulary), L-COLLOC (collocations), L-WCHOICE (word choice).
+    Discourse (Part 6): D-INSERT (sentence insertion), D-COHESION (transitions).
+    Reading (Part 7): R-GIST (main idea), R-DETAIL (specific detail), R-INFER
+    (inference), R-VIC (vocabulary in context), R-PURPOSE (purpose/tone), R-NOTTRUE
+    (NOT/true), R-XREF (cross-reference), R-INTENT (implied meaning).
 - Determining the correct answer: look for an answer key (often a separate table
   like "1. A  2. C ..."). If no correct answer can be determined for a question,
   set all choices isCorrect=false and add "answer_key_not_found" — do not guess.

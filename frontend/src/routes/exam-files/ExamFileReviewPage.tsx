@@ -112,6 +112,9 @@ export function ExamFileReviewPage() {
               <div className="mb-2 flex items-center gap-2">
                 <span className="badge">Part {q.part}</span>
                 {q.groupId && <span className="badge-slate">{q.groupId}</span>}
+                {(q.skills ?? []).map((s) => (
+                  <span key={s} className="badge bg-brand-50 text-brand-700">{s}</span>
+                ))}
                 {noCorrect && <span className="badge bg-rose-100 text-rose-700">{t('noCorrectAnswer')}</span>}
                 <button className="ml-auto btn-ghost btn-sm text-rose-600" onClick={() => removeQuestion(i)}>
                   <Icon name="trash" /> {t('remove')}

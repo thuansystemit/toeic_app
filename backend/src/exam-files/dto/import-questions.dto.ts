@@ -44,6 +44,12 @@ class ImportQuestion {
   @MaxLength(5000)
   explanationVi?: string;
 
+  // Skill codes (knowledge-graph tags) classified by the extraction LLM.
+  @IsOptional()
+  @IsArray()
+  @IsString({ each: true })
+  skills?: string[];
+
   // Carried over from the staged/extracted shape; accepted but not required.
   @IsOptional()
   @IsString()

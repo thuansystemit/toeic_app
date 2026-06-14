@@ -47,7 +47,9 @@ services:
       INTERNAL_API_TOKEN: dev-internal-token-change-me
       LLM_PROVIDER: ollama
       OLLAMA_BASE_URL: http://192.168.100.158:11434
-      OLLAMA_MODEL: llama3
+      # 3B model fits the host's 4GB GPU (GTX 1650) fully in VRAM; llama3 (8B,
+      # ~5.3GB) did not and ran CPU-only (~45-60 min/doc).
+      OLLAMA_MODEL: qwen2.5:14b
     extra_hosts:
       - "host.docker.internal:host-gateway"
 

@@ -4,7 +4,7 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Brackets, Repository } from 'typeorm';
+import { Brackets, DataSource, Repository } from 'typeorm';
 import { User, UserRole, UserStatus } from '../users/user.entity';
 import { RefreshToken } from '../auth/refresh-token.entity';
 import { ListUsersQuery } from './dto/list-users.query';
@@ -30,6 +30,7 @@ export class AdminService {
     @InjectRepository(User) private readonly users: Repository<User>,
     @InjectRepository(RefreshToken)
     private readonly refreshTokens: Repository<RefreshToken>,
+    private readonly dataSource: DataSource,
   ) {}
 
   async listUsers(query: ListUsersQuery): Promise<Paginated<AdminUserView>> {
@@ -107,6 +108,45 @@ export class AdminService {
     user.status = 'active';
     await this.users.save(user);
     return this.toView(user);
+  }
+
+  /**
+   * Permanently remove a user and everything tied to them (full purge):
+   *  - attempts they made AND every attempt on the tests they authored,
+   *  - exam files they uploaded (extraction jobs cascade),
+   *  - tests they authored (parts/questions/choices/stimuli/skill tags cascade),
+   *  - the user (refresh + password-reset tokens cascade).
+   * Irreversible. Guarded so an admin can't delete themselves or the last admin.
+   */
+  async hardDelete(
+    actingAdminId: string,
+    userId: string,
+  ): Promise<{ deleted: true }> {
+    if (actingAdminId === userId) {
+      throw new ForbiddenException('You cannot delete your own account');
+    }
+    const user = await this.getOrThrow(userId);
+    if (user.role === 'admin') {
+      const admins = await this.users.count({ where: { role: 'admin' } });
+      if (admins <= 1) {
+        throw new ForbiddenException('Cannot delete the last administrator');
+      }
+    }
+
+    await this.dataSource.transaction(async (m) => {
+      // The user's own attempts + everyone's attempts on the user's tests
+      // (attempts.test_id has no cascade, so it must be cleared explicitly).
+      await m.query(
+        `DELETE FROM attempts
+           WHERE user_id = $1
+              OR test_id IN (SELECT id FROM tests WHERE created_by = $1)`,
+        [userId],
+      );
+      await m.query(`DELETE FROM exam_files WHERE uploaded_by = $1`, [userId]);
+      await m.query(`DELETE FROM tests WHERE created_by = $1`, [userId]);
+      await m.query(`DELETE FROM users WHERE id = $1`, [userId]);
+    });
+    return { deleted: true };
   }
 
   private async getOrThrow(userId: string): Promise<User> {

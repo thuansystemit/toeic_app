@@ -12,7 +12,7 @@ to extract questions for human review before import.
 - **Backend:** NestJS (TypeScript) · PostgreSQL via TypeORM · JWT auth (HS256, refresh in HttpOnly cookie)
 - **Frontend:** React (TypeScript) · Vite · Tailwind CSS · Zustand + TanStack Query · react-i18next (EN/VI) · Font Awesome
 - **Extraction service:** Python worker · Redis queue · pluggable LLM providers (Ollama / Claude / OpenAI)
-- **Design docs:** [`docs/sdlc/`](docs/sdlc/) · [`docs/feature-pdf-question-import.md`](docs/feature-pdf-question-import.md)
+- **Design docs:** [`docs/sdlc/`](docs/sdlc/) · [`docs/feature-pdf-question-import.md`](docs/feature-pdf-question-import.md) · [`docs/adr-knowledge-graph.md`](docs/adr-knowledge-graph.md)
 - **Setup guides:** [`docs/social-login-setup.md`](docs/social-login-setup.md) · extraction standard [`docs/enterprise_document_extraction_standard.md`](docs/enterprise_document_extraction_standard.md) ([conformance](extraction-service/docs/EDIES_CONFORMANCE.md))
 
 ---
@@ -30,8 +30,10 @@ to extract questions for human review before import.
 - Create a test → **7 TOEIC parts auto-scaffolded** (Listening 1–4, Reading 5–7)
 - Add / **edit** / **delete** questions (4 choices, exactly-one-correct validation)
 - Per-question **Vietnamese explanation**
+- **Skill tagging** — tag questions against the TOEIC skill taxonomy (+ coverage view)
 - Upload **audio + image + passage** stimuli (a single question can carry several — e.g. Part 1 photo + audio)
-- **Publish guard** — every part must have ≥1 question; unpublish to edit
+- **Per-part publishing** — publish/unpublish each part independently (guard: ≥1 question, every question answered); a part is practiceable only when its test **and** the part are published
+- **Delete a test** from the author library
 
 ### Taking tests (Learner)
 - **Full timed test** — server-authoritative countdown, auto-submit on expiry, **audio plays once** (no replay), unanswered-count warning before submit
@@ -47,7 +49,7 @@ to extract questions for human review before import.
 - Live status (Queued → Extracting → Ready), warnings (e.g. missing answer key), and **traceability** (source page, file hash, model, prompt/schema version) per the [EDIES standard](docs/enterprise_document_extraction_standard.md)
 
 ### Admin
-- Paginated user management — search, filter, change role, deactivate/reactivate (with self-protection)
+- Paginated user management — search, filter, change role, deactivate/reactivate, and **hard-delete** users (full purge; self- and last-admin-protected)
 
 ### Cross-cutting
 - Bilingual **English / Vietnamese** UI throughout
@@ -88,6 +90,61 @@ React SPA ──► NestJS API (system of record) ──► PostgreSQL
 ```
 The NestJS app is the system of record; the **Python worker is stateless** and
 extraction-only. See [`docs/feature-pdf-question-import.md`](docs/feature-pdf-question-import.md).
+
+---
+
+## High-level workflow
+
+From an uploaded PDF to a published, practiceable test — and, ahead, a skill graph:
+
+```
+┌── A. UPLOAD ──────────────────────────────────────────────┐
+ Teacher uploads PDF/DOCX  →  POST /exam-files
+   • file saved to disk, exam_file row (status: uploaded→queued)
+   • extraction_job created, job pushed to Redis queue
+└───────────────────────────────────────────────────────────┘
+                         │ (Redis queue)
+                         ▼
+┌── B. EXTRACTION WORKER (Python, async) ───────────────────┐
+ 1. VALIDATING      – mime / size / encryption / page count
+ 2. EXTRACTING_TEXT – pdfplumber text layer
+                      ↳ OCR fallback (PyMuPDF + Tesseract) for
+                        scanned pages with no text
+ 3. guardrails      – min length / quality / strip injection
+ 4. CHUNKING        – line-aware, passage-preserving, overlap
+ 5. EXTRACTING ⇐ LLM (Ollama / Claude / OpenAI)
+                      per chunk → JSON questions → validate → dedup
+ 6. VALIDATING_OUTPUT – quality gate
+ 7. callback → staged_questions saved on job; status: extracted
+└───────────────────────────────────────────────────────────┘
+                         │
+                         ▼
+┌── C. REVIEW & IMPORT (human-in-the-loop) ─────────────────┐
+ Teacher opens review screen → GET /exam-files/:id/review
+   • edit text, fix choices, SET correct answers
+   • POST /exam-files/:id/import → questions into a DRAFT test
+     (answer-less allowed; answers can be filled later)
+└───────────────────────────────────────────────────────────┘
+                         │
+                         ▼
+┌── D. AUTHORING & PUBLISH ─────────────────────────────────┐
+ • tag questions with skills (manual now)
+ • publish per part (guard: every Q has 1 correct answer)
+ • publish test → appears in learner library
+└───────────────────────────────────────────────────────────┘
+                         │
+            ┌────────────┴─────────────┐
+            ▼                           ▼
+┌── E. LEARNER ──────────┐   ┌── F. KNOWLEDGE GRAPH (future) ─┐
+ practice / full attempt      • LLM auto-tag skills (not built)
+ → answers → scoring          • graph view (built, Postgres)
+ → results                    • adaptive recommendations (later)
+└────────────────────────┘   └────────────────────────────────┘
+```
+
+The **LLM** in step B (and the future auto-tagging in F) is pluggable per env
+(`LLM_PROVIDER`); on a small GPU (e.g. 4 GB) prefer a model that fits in VRAM.
+Knowledge-graph design: [`docs/adr-knowledge-graph.md`](docs/adr-knowledge-graph.md).
 
 ---
 

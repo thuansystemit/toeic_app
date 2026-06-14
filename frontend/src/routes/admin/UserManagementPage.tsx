@@ -4,6 +4,7 @@ import { AppLayout } from '../../components/AppLayout';
 import {
   changeUserRole,
   deactivateUser,
+  hardDeleteUser,
   listUsers,
   reactivateUser,
   type AdminUser,
@@ -143,16 +144,29 @@ export function UserManagementPage() {
                   <td className="px-5 py-3 text-xs text-slate-400">
                     {u.lastLoginAt ? new Date(u.lastLoginAt).toLocaleDateString() : '—'}
                   </td>
-                  <td className="px-5 py-3 text-right">
-                    {u.status === 'active' ? (
-                      <button className="btn-ghost btn-sm" disabled={isSelf} onClick={() => act(() => deactivateUser(u.id))}>
-                        {t('deactivate')}
+                  <td className="px-5 py-3">
+                    <div className="flex items-center justify-end gap-1">
+                      {u.status === 'active' ? (
+                        <button className="btn-ghost btn-sm" disabled={isSelf} onClick={() => act(() => deactivateUser(u.id))}>
+                          {t('deactivate')}
+                        </button>
+                      ) : (
+                        <button className="btn-soft btn-sm" onClick={() => act(() => reactivateUser(u.id))}>
+                          {t('reactivate')}
+                        </button>
+                      )}
+                      <button
+                        className="btn-ghost btn-sm text-rose-600 disabled:opacity-40"
+                        disabled={isSelf}
+                        title={t('delete')}
+                        onClick={() => {
+                          if (!confirm(t('deleteConfirm', { name: u.displayName }))) return;
+                          void act(() => hardDeleteUser(u.id));
+                        }}
+                      >
+                        {t('delete')}
                       </button>
-                    ) : (
-                      <button className="btn-soft btn-sm" onClick={() => act(() => reactivateUser(u.id))}>
-                        {t('reactivate')}
-                      </button>
-                    )}
+                    </div>
                   </td>
                 </tr>
               );
