@@ -29,6 +29,46 @@ services:
       timeout: 3s
       retries: 5
 
+  # NestJS API. Reuses backend/.env, overriding only what differs inside the
+  # compose network (DB host/port, Redis). Applies migrations on start.
+  backend:
+    build:
+      context: .
+      dockerfile: backend/Dockerfile
+    container_name: toeic_backend
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    env_file: ./backend/.env
+    environment:
+      NODE_ENV: production
+      PORT: 3000
+      DB_HOST: postgres
+      DB_PORT: 5432
+      REDIS_URL: redis://redis:6379/0
+    ports:
+      - "3000:3000"
+    volumes:
+      - toeic_uploads:/app/backend/uploads
+
+  # React SPA served by nginx; reverse-proxies /api to the backend so the UI
+  # works over any host/IP. Reach it at http://<server-ip>:8080
+  frontend:
+    build:
+      context: .
+      dockerfile: frontend/Dockerfile
+      args:
+        VITE_API_URL: /api
+    container_name: toeic_frontend
+    restart: unless-stopped
+    depends_on:
+      - backend
+    ports:
+      - "8080:80"
+
   # Python question-extraction worker (consumes jobs from Redis).
   # Build/run with: docker compose --profile extraction up -d extraction-worker
   extraction-worker:
@@ -43,7 +83,7 @@ services:
       REDIS_URL: redis://redis:6379/0
       EXTRACTION_QUEUE: extraction:jobs
       # NestJS API as seen from inside the compose network:
-      BACKEND_BASE_URL: http://host.docker.internal:3000/api
+      BACKEND_BASE_URL: http://backend:3000/api
       INTERNAL_API_TOKEN: dev-internal-token-change-me
       LLM_PROVIDER: ollama
       OLLAMA_BASE_URL: http://192.168.100.158:11434
@@ -55,3 +95,4 @@ services:
 
 volumes:
   toeic_pgdata:
+  toeic_uploads:

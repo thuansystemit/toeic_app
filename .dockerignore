@@ -1,0 +1,12 @@
+**/node_modules
+**/dist
+**/build
+**/coverage
+**/*.log
+**/*.tsbuildinfo
+.npm-cache
+.git
+backend/uploads
+frontend/.vite
+extraction-service/**
+**/.env
