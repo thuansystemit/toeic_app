@@ -175,7 +175,13 @@ export class TestsService {
     return { skillIds: unique };
   }
 
-  /** Create a draft test and auto-scaffold the 7 TOEIC parts (REQ-010). */
+  /**
+   * Create a draft test, scaffold the 7 TOEIC parts (REQ-010), and pre-create
+   * the standard question slots for every part. Each slot is a placeholder
+   * (canonical TOEIC number 1-200, 4 blank choices A-D, NO correct answer yet)
+   * so the teacher fills content instead of starting empty; the per-part publish
+   * guard then forces a real answer on each before the part can go live.
+   */
   async createTest(userId: string, dto: CreateTestDto): Promise<Test> {
     const testId = await this.dataSource.transaction(async (manager) => {
       const test = await manager.save(
@@ -187,7 +193,7 @@ export class TestsService {
           createdBy: userId,
         }),
       );
-      await manager.save(
+      const parts = await manager.save(
         TOEIC_PARTS.map((p) =>
           manager.create(Part, {
             testId: test.id,
@@ -197,6 +203,41 @@ export class TestsService {
           }),
         ),
       );
+
+      // Standard question slots: continuous TOEIC numbering across parts 1-7.
+      const orderedParts = [...parts].sort((a, b) => a.partNumber - b.partNumber);
+      const questions: Question[] = [];
+      let toeicNo = 1;
+      for (const part of orderedParts) {
+        for (let seq = 1; seq <= part.targetQuestionCount; seq++) {
+          questions.push(
+            manager.create(Question, {
+              partId: part.id,
+              sequence: seq,
+              questionText: `Question ${toeicNo}`,
+              explanationVi: null,
+            }),
+          );
+          toeicNo += 1;
+        }
+      }
+      const savedQuestions = await manager.save(questions, { chunk: 200 });
+
+      const choices: Choice[] = [];
+      for (const q of savedQuestions) {
+        for (const label of ['A', 'B', 'C', 'D'] as const) {
+          choices.push(
+            manager.create(Choice, {
+              questionId: q.id,
+              label,
+              choiceText: `Choice ${label}`,
+              isCorrect: false,
+            }),
+          );
+        }
+      }
+      await manager.save(choices, { chunk: 400 });
+
       return test.id;
     });
     // Load the tree after commit so the default connection can see the rows.
@@ -378,6 +419,22 @@ export class TestsService {
           }),
         ),
       );
+      // Audio/image stimuli (Part 1 photo+audio, Part 2 audio, …). Replace any
+      // existing stimulus of the same type so re-uploading swaps the media.
+      for (const m of dto.media ?? []) {
+        await manager.delete(Stimulus, { questionId, type: m.type });
+        await manager.save(
+          manager.create(Stimulus, {
+            partId,
+            questionId,
+            type: m.type,
+            storageKey: m.storageKey,
+            originalFilename: m.originalFilename ?? null,
+            mimeType: m.mimeType ?? null,
+            sequence: 0,
+          }),
+        );
+      }
       return manager.findOneOrFail(Question, {
         where: { id: questionId },
         relations: { choices: true, stimuli: true },

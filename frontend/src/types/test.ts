@@ -32,12 +32,21 @@ export interface ChoiceDto {
   isCorrect?: boolean;
 }
 
+export interface StimulusDto {
+  id: string;
+  type: 'audio' | 'image' | 'passage';
+  storageKey?: string | null;
+  originalFilename?: string | null;
+  passageText?: string | null;
+}
+
 export interface QuestionDto {
   id: string;
   sequence: number;
   questionText: string | null;
   explanationVi?: string | null;
   choices: ChoiceDto[];
+  stimuli?: StimulusDto[];
 }
 
 export interface PartDto {

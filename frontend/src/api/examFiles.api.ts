@@ -1,9 +1,10 @@
 import { api } from './client';
 import type { ExamFile, StagedQuestion } from '../types/examFile';
 
-export async function uploadExamFile(file: File): Promise<ExamFile> {
+export async function uploadExamFile(file: File, part: number): Promise<ExamFile> {
   const form = new FormData();
   form.append('file', file);
+  form.append('part', String(part));
   const res = await api.post<ExamFile>('/exam-files', form);
   return res.data;
 }

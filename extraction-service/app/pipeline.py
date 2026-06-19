@@ -29,9 +29,28 @@ _PROMPT_PATH = os.path.join(os.path.dirname(__file__), "prompts", "toeic_extract
 StageCb = Optional[Callable[[str], None]]
 
 
-def _system_prompt() -> str:
+# Per-part guidance appended when a document is known to contain a single part.
+_PART_GUIDANCE = {
+    5: ("Part 5 = incomplete sentences. Each question is ONE sentence with a "
+        "single blank and 4 options; there is NO passage (set passageText null)."),
+    6: ("Part 6 = text completion. A short passage has 4 numbered blanks; put the "
+        "passage in passageText and share one groupId across its 4 questions. One "
+        "blank may ask which sentence best fits."),
+    7: ("Part 7 = reading comprehension. Each passage (or pair/triple of passages) "
+        "is followed by several questions; put the full passage text in passageText "
+        "and share one groupId across all questions about the same passage(s)."),
+}
+
+
+def _system_prompt(part: Optional[int] = None) -> str:
     with open(_PROMPT_PATH, "r", encoding="utf-8") as f:
-        return f.read()
+        base = f.read()
+    if part in _PART_GUIDANCE:
+        base += (
+            f"\n\nSINGLE-PART DOCUMENT: this file contains ONLY Part {part} "
+            f"questions. Set \"part\": {part} for EVERY question. {_PART_GUIDANCE[part]}"
+        )
+    return base
 
 
 def run_extraction(
@@ -42,6 +61,7 @@ def run_extraction(
     provider_name: Optional[str] = None,
     on_stage: StageCb = None,
     job_id: str = "",
+    part: Optional[int] = None,
 ) -> ExtractionEnvelope:
     started = time.monotonic()
 
@@ -71,7 +91,7 @@ def run_extraction(
     # 4. LLM extraction per chunk (EDIES §13: validate every output)
     stage("EXTRACTING")
     provider = get_provider(provider_name)
-    system = _system_prompt()
+    system = _system_prompt(part)
     questions: list[ExtractedQuestion] = []
     warnings: list[str] = []
     skipped = 0
@@ -88,6 +108,10 @@ def run_extraction(
             continue
         for i, q in enumerate(parsed.get("questions", [])):
             try:
+                # Per-part upload: force the known part rather than trusting the
+                # model's classification (eliminates cross-part mislabeling).
+                if part is not None:
+                    q["part"] = part
                 eq = ExtractedQuestion(**q)
                 if eq.sourcePage is None:
                     eq.sourcePage = ch.page_start

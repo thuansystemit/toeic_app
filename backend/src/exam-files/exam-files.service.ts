@@ -39,6 +39,7 @@ export class ExamFilesService {
   async upload(
     userId: string,
     file: Express.Multer.File | undefined,
+    part: number,
     provider = 'ollama',
   ): Promise<ExamFile> {
     if (!file) throw new BadRequestException('No file provided');
@@ -47,6 +48,10 @@ export class ExamFilesService {
     }
     if (file.size > MAX_BYTES) {
       throw new BadRequestException('File exceeds 20MB limit');
+    }
+    // Reading parts only — listening (1-4) can't be extracted from a document.
+    if (![5, 6, 7].includes(part)) {
+      throw new BadRequestException('part must be 5, 6 or 7 (reading)');
     }
     const stored = await this.filesService.saveDocument(file);
 
@@ -58,6 +63,7 @@ export class ExamFilesService {
         sizeBytes: String(file.size),
         status: 'queued',
         uploadedBy: userId,
+        part,
         questionCount: 0,
       }),
     );
@@ -72,6 +78,7 @@ export class ExamFilesService {
       storageKey: examFile.storageKey,
       fileName: examFile.originalFilename,
       provider,
+      part,
     });
     return examFile;
   }

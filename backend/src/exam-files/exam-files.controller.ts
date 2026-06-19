@@ -32,8 +32,9 @@ export class ExamFilesController {
   upload(
     @CurrentUser() user: AuthenticatedUser,
     @UploadedFile() file: Express.Multer.File,
+    @Body('part') part: string,
   ) {
-    return this.examFilesService.upload(user.id, file);
+    return this.examFilesService.upload(user.id, file, Number(part));
   }
 
   @Get()

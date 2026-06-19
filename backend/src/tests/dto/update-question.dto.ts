@@ -8,7 +8,7 @@ import {
   MaxLength,
   ValidateNested,
 } from 'class-validator';
-import { ChoiceInput } from './create-question.dto';
+import { ChoiceInput, MediaStimulusInput } from './create-question.dto';
 
 export class UpdateQuestionDto {
   @IsOptional()
@@ -27,4 +27,12 @@ export class UpdateQuestionDto {
   @ValidateNested({ each: true })
   @Type(() => ChoiceInput)
   choices!: ChoiceInput[];
+
+  // Audio/image stimuli (e.g. Part 1 photo+audio, Part 2 audio). Each entry
+  // replaces the existing stimulus of the same type on this question.
+  @IsOptional()
+  @IsArray()
+  @ValidateNested({ each: true })
+  @Type(() => MediaStimulusInput)
+  media?: MediaStimulusInput[];
 }

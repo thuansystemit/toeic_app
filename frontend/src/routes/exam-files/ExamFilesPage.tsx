@@ -37,6 +37,7 @@ export function ExamFilesPage() {
   const [loading, setLoading] = useState(true);
   const [uploading, setUploading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [part, setPart] = useState(5); // reading parts 5-7; upload one part per file
   const inputRef = useRef<HTMLInputElement | null>(null);
 
   const load = async () => {
@@ -65,7 +66,7 @@ export function ExamFilesPage() {
     setError(null);
     setUploading(true);
     try {
-      await uploadExamFile(file);
+      await uploadExamFile(file, part);
       await load();
     } catch (e) {
       const ax = e as AxiosError<{ message: string }>;
@@ -91,6 +92,18 @@ export function ExamFilesPage() {
       <div className="card mb-6 flex flex-col items-center gap-3 border-2 border-dashed border-brand-200 bg-brand-50/40 p-8 text-center">
         <Icon name="upload" className="text-3xl text-brand-400" />
         <p className="font-semibold text-slate-600">{t('uploadHint')}</p>
+        <label className="label">
+          {t('uploadPart')}
+          <select
+            className="input w-44"
+            value={part}
+            onChange={(e) => setPart(Number(e.target.value))}
+          >
+            <option value={5}>{t('partN', { n: 5 })} — {t('part5Hint')}</option>
+            <option value={6}>{t('partN', { n: 6 })} — {t('part6Hint')}</option>
+            <option value={7}>{t('partN', { n: 7 })} — {t('part7Hint')}</option>
+          </select>
+        </label>
         <input
           ref={inputRef}
           type="file"
@@ -99,7 +112,7 @@ export function ExamFilesPage() {
           onChange={(e) => onFile(e.target.files?.[0])}
         />
         <button className="btn-primary" disabled={uploading} onClick={onPick}>
-          {uploading ? t('loading', { ns: 'common' }) : t('chooseFile')}
+          {uploading ? t('loading', { ns: 'common' }) : `${t('chooseFile')} (${t('partN', { n: part })})`}
         </button>
         {error && <p className="text-sm font-semibold text-rose-600">{error}</p>}
       </div>

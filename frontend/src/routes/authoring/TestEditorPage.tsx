@@ -24,9 +24,10 @@ import type {
   QuestionSkillsMap,
   QuestionSkillTag,
   Skill,
+  StimulusDto,
   TestDto,
 } from '../../types/test';
-import { uploadFile } from '../../api/files.api';
+import { fileUrl, uploadFile } from '../../api/files.api';
 import { Icon } from '../../components/Icon';
 
 type Labels = 'A' | 'B' | 'C' | 'D';
@@ -241,6 +242,8 @@ export function TestEditorPage() {
                             />
                             {isEditing && (
                               <QuestionForm
+                                partNumber={part.partNumber}
+                                stimuli={q.stimuli}
                                 initial={{
                                   questionText: q.questionText ?? '',
                                   explanationVi: q.explanationVi ?? '',
@@ -261,6 +264,7 @@ export function TestEditorPage() {
                                     questionText: input.questionText,
                                     explanationVi: input.explanationVi,
                                     choices: input.choices,
+                                    media: input.media,
                                   })
                                 }
                               />
@@ -273,6 +277,7 @@ export function TestEditorPage() {
 
                 {openPart === part.id && (
                   <QuestionForm
+                    partNumber={part.partNumber}
                     onSaved={async () => {
                       setOpenPart(null);
                       await load();
@@ -403,13 +408,23 @@ function QuestionForm({
   onSubmit,
   onSaved,
   initial,
+  partNumber,
+  stimuli,
 }: {
   onSubmit: (input: NewQuestionInput) => Promise<void>;
   onSaved: () => void;
   initial?: QuestionInitial;
+  partNumber: number;
+  stimuli?: StimulusDto[];
 }) {
   const { t } = useTranslation(['test']);
   const isEdit = !!initial;
+  // Part 1 = photo + audio; Part 2 = audio; Parts 6/7 = passage.
+  const allowImage = partNumber === 1;
+  const allowAudio = partNumber === 1 || partNumber === 2;
+  const allowPassage = partNumber === 6 || partNumber === 7;
+  const currentImage = stimuli?.find((s) => s.type === 'image');
+  const currentAudio = stimuli?.find((s) => s.type === 'audio');
   const [questionText, setQuestionText] = useState(initial?.questionText ?? '');
   const [explanationVi, setExplanationVi] = useState(initial?.explanationVi ?? '');
   const [choices, setChoices] = useState<Record<Labels, string>>(
@@ -453,27 +468,43 @@ function QuestionForm({
 
   return (
     <div className="mt-4 flex flex-col gap-3 border-t border-dashed border-slate-200 pt-4">
-      {!isEdit && (
+      {(allowImage || allowAudio || (!isEdit && allowPassage)) && (
         <div className="grid gap-3 rounded-2xl bg-amber-50 p-4 sm:grid-cols-2">
-          <label className="label">
-            <span>
-              <Icon name="image" /> {t('imageStimulus')}
-            </span>
-            <input type="file" accept="image/*" onChange={(e) => setImageFile(e.target.files?.[0] ?? null)} className="text-sm" />
-          </label>
-          <label className="label">
-            <span>
-              <Icon name="audio" /> {t('audioStimulus')}
-            </span>
-            <input type="file" accept="audio/*" onChange={(e) => setAudioFile(e.target.files?.[0] ?? null)} className="text-sm" />
-          </label>
-          <textarea
-            className="input sm:col-span-2"
-            placeholder={t('passageOptional')}
-            value={passageText}
-            onChange={(e) => setPassageText(e.target.value)}
-            rows={2}
-          />
+          {allowImage && (
+            <label className="label">
+              <span>
+                <Icon name="image" /> {t('imageStimulus')}
+              </span>
+              {currentImage?.storageKey && (
+                <a className="text-xs font-semibold text-brand-600 underline" href={fileUrl(currentImage.storageKey)} target="_blank" rel="noreferrer">
+                  {currentImage.originalFilename ?? t('currentFile')}
+                </a>
+              )}
+              <input type="file" accept="image/*" onChange={(e) => setImageFile(e.target.files?.[0] ?? null)} className="text-sm" />
+            </label>
+          )}
+          {allowAudio && (
+            <label className="label">
+              <span>
+                <Icon name="audio" /> {t('audioStimulus')}
+              </span>
+              {currentAudio?.storageKey && (
+                <a className="text-xs font-semibold text-brand-600 underline" href={fileUrl(currentAudio.storageKey)} target="_blank" rel="noreferrer">
+                  {currentAudio.originalFilename ?? t('currentFile')}
+                </a>
+              )}
+              <input type="file" accept="audio/*" onChange={(e) => setAudioFile(e.target.files?.[0] ?? null)} className="text-sm" />
+            </label>
+          )}
+          {!isEdit && allowPassage && (
+            <textarea
+              className="input sm:col-span-2"
+              placeholder={t('passageOptional')}
+              value={passageText}
+              onChange={(e) => setPassageText(e.target.value)}
+              rows={2}
+            />
+          )}
         </div>
       )}
 

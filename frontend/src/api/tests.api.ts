@@ -103,7 +103,12 @@ export async function updateQuestion(
   testId: string,
   partId: string,
   questionId: string,
-  input: { questionText?: string; explanationVi?: string; choices: NewQuestionInput['choices'] },
+  input: {
+    questionText?: string;
+    explanationVi?: string;
+    choices: NewQuestionInput['choices'];
+    media?: NewQuestionInput['media'];
+  },
 ): Promise<void> {
   await api.patch(
     `/tests/${testId}/parts/${partId}/questions/${questionId}`,

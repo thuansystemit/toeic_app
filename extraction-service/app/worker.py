@@ -33,10 +33,11 @@ def handle(client: redis.Redis, raw: str) -> None:
     storage_key = msg["storageKey"]
     file_name = msg.get("fileName", storage_key)
     provider = msg.get("provider") or settings.provider
+    part = msg.get("part")
     corr = correlation_id(job_id)
 
     audit("EXTRACTION_STARTED", correlationId=corr, jobId=job_id,
-          documentId=document_id, provider=provider)
+          documentId=document_id, provider=provider, part=part)
     incr("documents_processed_total")
 
     try:
@@ -45,7 +46,7 @@ def handle(client: redis.Redis, raw: str) -> None:
 
         env = run_extraction(
             data, mime, file_name, provider_name=provider,
-            job_id=job_id, on_stage=lambda s: None,
+            job_id=job_id, on_stage=lambda s: None, part=part,
         )
 
         # Provenance + quality travel in `usage` (stored as JSONB by NestJS).

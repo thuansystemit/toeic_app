@@ -40,6 +40,10 @@ export class ExamFile {
   @Column({ name: 'test_id', type: 'uuid', nullable: true })
   testId!: string | null;
 
+  // Which TOEIC part this document holds (per-part upload). 5/6/7 for reading.
+  @Column({ type: 'int', nullable: true })
+  part!: number | null;
+
   @Column({ name: 'question_count', type: 'int', default: 0 })
   questionCount!: number;
 

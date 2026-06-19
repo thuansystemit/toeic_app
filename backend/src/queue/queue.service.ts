@@ -14,6 +14,9 @@ export interface ExtractionJobMessage {
   fileName: string;
   provider: string;
   model?: string | null;
+  // Target TOEIC part (5/6/7). The worker forces every question to this part
+  // instead of classifying it, so per-part uploads can't be mis-assigned.
+  part?: number | null;
 }
 
 /** Thin Redis wrapper used to enqueue extraction jobs for the Python worker. */

@@ -21,5 +21,5 @@ RUN npm run build --workspace backend
 
 WORKDIR /app/backend
 EXPOSE 3000
-# Apply pending migrations, then start the compiled API.
-CMD ["sh", "-c", "npm run migration:run && node dist/main.js"]
+# Apply migrations, ensure the default admin exists (idempotent), then start.
+CMD ["sh", "-c", "npm run migration:run && npm run seed:admin && node dist/main.js"]
