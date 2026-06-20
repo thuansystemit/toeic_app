@@ -49,6 +49,9 @@ services:
       DB_HOST: postgres
       DB_PORT: 5432
       REDIS_URL: redis://redis:6379/0
+      # Default extraction provider for new jobs — keep in sync with the worker's
+      # LLM_PROVIDER via the repo-root .env (ollama | claude | openai).
+      LLM_PROVIDER: ${LLM_PROVIDER:-ollama}
     ports:
       - "3000:3000"
     volumes:
@@ -85,13 +88,26 @@ services:
       # NestJS API as seen from inside the compose network:
       BACKEND_BASE_URL: http://backend:3000/api
       INTERNAL_API_TOKEN: dev-internal-token-change-me
-      LLM_PROVIDER: ollama
-      OLLAMA_BASE_URL: http://192.168.100.158:11434
+      # Provider: "ollama" (default, local) | "claude" | "openai".
+      # Override these in a .env file at the repo root (gitignored) — e.g.
+      #   LLM_PROVIDER=claude
+      #   ANTHROPIC_API_KEY=sk-ant-...
+      LLM_PROVIDER: ${LLM_PROVIDER:-ollama}
+      # OLLAMA_BASE_URL: http://192.168.100.158:11434
+      # OLLAMA_BASE_URL: http://host.docker.internal:11434
       # 3B model fits the host's 4GB GPU (GTX 1650) fully in VRAM; llama3 (8B,
       # ~5.3GB) did not and ran CPU-only (~45-60 min/doc).
-      OLLAMA_MODEL: qwen2.5:14b
+      # OLLAMA_MODEL: qwen2.5:14b
+      OLLAMA_MODEL: qwen2.5:3b
+      # Claude (Anthropic) — set the key in .env to use LLM_PROVIDER=claude.
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+      ANTHROPIC_MODEL: ${ANTHROPIC_MODEL:-claude-opus-4-8}
     extra_hosts:
       - "host.docker.internal:host-gateway"
+    volumes:
+      # Live LLM config: edit the repo-root .env and the next job picks it up
+      # (provider/model/key are re-read per job) — no rebuild or restart needed.
+      - ./.env:/app/.env:ro
 
 volumes:
   toeic_pgdata:

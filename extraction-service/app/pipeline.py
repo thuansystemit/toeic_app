@@ -17,6 +17,7 @@ from app.domain.toeic_schema import (
 )
 from app.errors import ErrorCode, ExtractionError
 from app.extraction.chunker import chunk_text
+from app.extraction.parts import get_part_extractor
 from app.extraction.text_extractor import extract_text
 from app.guardrails.input_checks import run_text_guardrails, validate_document
 from app.llm.factory import get_provider
@@ -29,28 +30,9 @@ _PROMPT_PATH = os.path.join(os.path.dirname(__file__), "prompts", "toeic_extract
 StageCb = Optional[Callable[[str], None]]
 
 
-# Per-part guidance appended when a document is known to contain a single part.
-_PART_GUIDANCE = {
-    5: ("Part 5 = incomplete sentences. Each question is ONE sentence with a "
-        "single blank and 4 options; there is NO passage (set passageText null)."),
-    6: ("Part 6 = text completion. A short passage has 4 numbered blanks; put the "
-        "passage in passageText and share one groupId across its 4 questions. One "
-        "blank may ask which sentence best fits."),
-    7: ("Part 7 = reading comprehension. Each passage (or pair/triple of passages) "
-        "is followed by several questions; put the full passage text in passageText "
-        "and share one groupId across all questions about the same passage(s)."),
-}
-
-
-def _system_prompt(part: Optional[int] = None) -> str:
+def _base_prompt() -> str:
     with open(_PROMPT_PATH, "r", encoding="utf-8") as f:
-        base = f.read()
-    if part in _PART_GUIDANCE:
-        base += (
-            f"\n\nSINGLE-PART DOCUMENT: this file contains ONLY Part {part} "
-            f"questions. Set \"part\": {part} for EVERY question. {_PART_GUIDANCE[part]}"
-        )
-    return base
+        return f.read()
 
 
 def run_extraction(
@@ -88,10 +70,13 @@ def run_extraction(
     stage("CHUNKING")
     chunks = chunk_text(cleaned, settings.chunk_tokens, settings.chunk_overlap)
 
-    # 4. LLM extraction per chunk (EDIES §13: validate every output)
+    # 4. LLM extraction per chunk (EDIES §13: validate every output).
+    # The selected part (from the UI) picks one extraction strategy that owns the
+    # prompt guidance + per-question coercion/normalization for that part.
     stage("EXTRACTING")
     provider = get_provider(provider_name)
-    system = _system_prompt(part)
+    extractor = get_part_extractor(part)
+    system = extractor.system_prompt(_base_prompt())
     questions: list[ExtractedQuestion] = []
     warnings: list[str] = []
     skipped = 0
@@ -108,13 +93,8 @@ def run_extraction(
             continue
         for i, q in enumerate(parsed.get("questions", [])):
             try:
-                # Per-part upload: force the known part rather than trusting the
-                # model's classification (eliminates cross-part mislabeling).
-                if part is not None:
-                    q["part"] = part
-                eq = ExtractedQuestion(**q)
-                if eq.sourcePage is None:
-                    eq.sourcePage = ch.page_start
+                eq = ExtractedQuestion(**extractor.prepare(q))
+                eq = extractor.finalize(eq, page_start=ch.page_start)
                 questions.append(eq)
             except Exception as e:
                 skipped += 1
@@ -128,17 +108,19 @@ def run_extraction(
         )
 
     # Overlapping chunks (and repeated passages) can surface the same question
-    # twice — keep the first occurrence, keyed by part + normalized stem.
+    # twice — keep the first occurrence, keyed by the extractor's dedup key.
     deduped: list[ExtractedQuestion] = []
-    seen: set[tuple[int, str]] = set()
+    seen: set[tuple] = set()
     for q in questions:
-        stem = " ".join((q.questionText or "").lower().split())
-        key = (q.part, stem)
-        if stem and key in seen:
+        key = extractor.dedup_key(q)
+        if key is not None and key in seen:
             continue
-        seen.add(key)
+        if key is not None:
+            seen.add(key)
         deduped.append(q)
-    questions = deduped
+    # Cross-question normalization (e.g. Part 6 shares the full passage across the
+    # blanks of each group).
+    questions = extractor.finalize_batch(deduped)
 
     # 5. output validation + quality gate (EDIES §12, §22)
     stage("VALIDATING_OUTPUT")

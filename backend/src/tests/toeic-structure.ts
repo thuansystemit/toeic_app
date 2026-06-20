@@ -20,3 +20,25 @@ export const TOEIC_PARTS: PartSpec[] = [
 export function sectionForPart(partNumber: number): Section {
   return partNumber <= 4 ? 'listening' : 'reading';
 }
+
+/** Part 6 is text completion: every question slot is seeded with this standard
+ * business-document layout (4 blanks) instead of an empty passage, so authors
+ * start from a template rather than a blank box. */
+export const PART6_PASSAGE_TEMPLATE = [
+  '[Email / Memo / Notice / Advertisement]',
+  '',
+  'To:',
+  'From:',
+  'Date:',
+  'Subject:',
+  '',
+  'Dear ____,',
+  '',
+  '[Sentence 1] ____.',
+  '[Sentence 2] ____.',
+  '[Sentence 3] ____.',
+  '[Sentence 4] ____.',
+  '',
+  'Sincerely,',
+  '[Name]',
+].join('\n');

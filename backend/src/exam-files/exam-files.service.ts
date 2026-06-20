@@ -40,7 +40,9 @@ export class ExamFilesService {
     userId: string,
     file: Express.Multer.File | undefined,
     part: number,
-    provider = 'ollama',
+    // Default the extraction provider from env so it stays in sync with the
+    // worker's LLM_PROVIDER (both read the same value); falls back to ollama.
+    provider = process.env.LLM_PROVIDER ?? 'ollama',
   ): Promise<ExamFile> {
     if (!file) throw new BadRequestException('No file provided');
     if (!ALLOWED_MIME.includes(file.mimetype)) {

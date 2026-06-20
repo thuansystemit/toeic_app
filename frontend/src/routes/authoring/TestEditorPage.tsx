@@ -40,6 +40,16 @@ export function TestEditorPage() {
   const [summaries, setSummaries] = useState<PartSummary[]>([]);
   const [openPart, setOpenPart] = useState<string | null>(null);
   const [editing, setEditing] = useState<string | null>(null);
+  // Parts are collapsed by default (a full test has 7 parts, Part 7 alone has
+  // 50+ questions); expand the ones you're working on.
+  const [expandedParts, setExpandedParts] = useState<Set<string>>(new Set());
+
+  const toggleExpand = (partId: string) =>
+    setExpandedParts((prev) => {
+      const next = new Set(prev);
+      next.has(partId) ? next.delete(partId) : next.add(partId);
+      return next;
+    });
   const [msg, setMsg] = useState<{ text: string; ok: boolean } | null>(null);
   const [skills, setSkills] = useState<Skill[]>([]);
   const [questionSkills, setQuestionSkillsState] = useState<QuestionSkillsMap>({});
@@ -146,18 +156,30 @@ export function TestEditorPage() {
           .map((part) => {
             const count = countFor(part.id);
             const partDraft = part.status === 'draft';
+            const isExpanded = expandedParts.has(part.id);
             return (
               <div key={part.id} className="card p-5">
                 <div className="flex flex-wrap items-center gap-3">
                   <span className="grid h-10 w-10 place-items-center rounded-2xl bg-brand-50 font-extrabold text-brand-700">
                     {part.partNumber}
                   </span>
-                  <div className="flex-1">
-                    <div className="font-bold text-slate-800">{t('part', { n: part.partNumber })}</div>
-                    <div className="text-xs font-semibold capitalize text-slate-400">
-                      {part.section} · {t('questionsCount', { count })}
-                    </div>
-                  </div>
+                  <button
+                    type="button"
+                    className="flex flex-1 items-center gap-3 text-left"
+                    onClick={() => toggleExpand(part.id)}
+                    aria-expanded={isExpanded}
+                  >
+                    <Icon
+                      name="chevronDown"
+                      className={`text-slate-400 transition-transform ${isExpanded ? '' : '-rotate-90'}`}
+                    />
+                    <span className="min-w-0">
+                      <span className="block font-bold text-slate-800">{t('part', { n: part.partNumber })}</span>
+                      <span className="block text-xs font-semibold capitalize text-slate-400">
+                        {part.section} · {t('questionsCount', { count })}
+                      </span>
+                    </span>
+                  </button>
                   <span className={partDraft ? 'badge-slate' : 'badge-green'}>
                     {partDraft ? t('statusDraft') : t('statusPublished')}
                   </span>
@@ -167,7 +189,10 @@ export function TestEditorPage() {
                         className="btn-soft btn-sm"
                         onClick={() => {
                           setEditing(null);
-                          setOpenPart(openPart === part.id ? null : part.id);
+                          const opening = openPart !== part.id;
+                          setOpenPart(opening ? part.id : null);
+                          // Opening the add form must reveal the part body.
+                          if (opening) setExpandedParts((prev) => new Set(prev).add(part.id));
                         }}
                       >
                         {openPart === part.id ? t('cancel', { ns: 'common' }) : `+ ${t('addQuestion')}`}
@@ -189,7 +214,7 @@ export function TestEditorPage() {
                 </div>
 
                 {/* existing questions */}
-                {(part.questions?.length ?? 0) > 0 && (
+                {isExpanded && (part.questions?.length ?? 0) > 0 && (
                   <ul className="mt-4 flex flex-col gap-2">
                     {part.questions!
                       .slice()
@@ -247,6 +272,8 @@ export function TestEditorPage() {
                                 initial={{
                                   questionText: q.questionText ?? '',
                                   explanationVi: q.explanationVi ?? '',
+                                  passageText:
+                                    q.stimuli?.find((s) => s.type === 'passage')?.passageText ?? '',
                                   choices: {
                                     A: q.choices.find((c) => c.label === 'A')?.choiceText ?? '',
                                     B: q.choices.find((c) => c.label === 'B')?.choiceText ?? '',
@@ -263,6 +290,7 @@ export function TestEditorPage() {
                                   updateQuestion(test.id, part.id, q.id, {
                                     questionText: input.questionText,
                                     explanationVi: input.explanationVi,
+                                    passageText: input.passageText,
                                     choices: input.choices,
                                     media: input.media,
                                   })
@@ -275,7 +303,7 @@ export function TestEditorPage() {
                   </ul>
                 )}
 
-                {openPart === part.id && (
+                {isExpanded && openPart === part.id && (
                   <QuestionForm
                     partNumber={part.partNumber}
                     onSaved={async () => {
@@ -400,6 +428,7 @@ function SkillCoverage({ questionSkills }: { questionSkills: QuestionSkillsMap }
 interface QuestionInitial {
   questionText: string;
   explanationVi: string;
+  passageText: string;
   choices: Record<Labels, string>;
   correct: Labels;
 }
@@ -418,11 +447,13 @@ function QuestionForm({
   stimuli?: StimulusDto[];
 }) {
   const { t } = useTranslation(['test']);
-  const isEdit = !!initial;
   // Part 1 = photo + audio; Part 2 = audio; Parts 6/7 = passage.
   const allowImage = partNumber === 1;
   const allowAudio = partNumber === 1 || partNumber === 2;
   const allowPassage = partNumber === 6 || partNumber === 7;
+  // Part 6 is text completion: start authors from a standard business-document
+  // layout (4 blanks) instead of an empty box. Part 7 keeps the free passage.
+  const isPart6 = partNumber === 6;
   const currentImage = stimuli?.find((s) => s.type === 'image');
   const currentAudio = stimuli?.find((s) => s.type === 'audio');
   const [questionText, setQuestionText] = useState(initial?.questionText ?? '');
@@ -433,7 +464,11 @@ function QuestionForm({
   const [correct, setCorrect] = useState<Labels>(initial?.correct ?? 'A');
   const [imageFile, setImageFile] = useState<File | null>(null);
   const [audioFile, setAudioFile] = useState<File | null>(null);
-  const [passageText, setPassageText] = useState('');
+  // Pre-fill the passage from the existing question when editing; otherwise seed
+  // Part 6 with the standard template so new questions start from a layout.
+  const [passageText, setPassageText] = useState(
+    initial?.passageText || (isPart6 ? t('passage6Template') : ''),
+  );
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
 
@@ -453,7 +488,9 @@ function QuestionForm({
       await onSubmit({
         questionText,
         explanationVi: explanationVi || undefined,
-        passageText: passageText || undefined,
+        // For passage parts send the value as-is (even empty) so editing — and
+        // clearing — the passage persists; other parts never carry a passage.
+        passageText: allowPassage ? passageText : undefined,
         media: media.length ? media : undefined,
         choices: LABELS.map((label) => ({ label, choiceText: choices[label], isCorrect: label === correct })),
       });
@@ -468,7 +505,7 @@ function QuestionForm({
 
   return (
     <div className="mt-4 flex flex-col gap-3 border-t border-dashed border-slate-200 pt-4">
-      {(allowImage || allowAudio || (!isEdit && allowPassage)) && (
+      {(allowImage || allowAudio || allowPassage) && (
         <div className="grid gap-3 rounded-2xl bg-amber-50 p-4 sm:grid-cols-2">
           {allowImage && (
             <label className="label">
@@ -496,14 +533,17 @@ function QuestionForm({
               <input type="file" accept="audio/*" onChange={(e) => setAudioFile(e.target.files?.[0] ?? null)} className="text-sm" />
             </label>
           )}
-          {!isEdit && allowPassage && (
-            <textarea
-              className="input sm:col-span-2"
-              placeholder={t('passageOptional')}
-              value={passageText}
-              onChange={(e) => setPassageText(e.target.value)}
-              rows={2}
-            />
+          {allowPassage && (
+            <div className="flex flex-col gap-1 sm:col-span-2">
+              <textarea
+                className="input font-mono text-sm"
+                placeholder={t('passageOptional')}
+                value={passageText}
+                onChange={(e) => setPassageText(e.target.value)}
+                rows={isPart6 ? 12 : 2}
+              />
+              {isPart6 && <p className="text-xs font-semibold text-slate-400">{t('passage6Hint')}</p>}
+            </div>
           )}
         </div>
       )}

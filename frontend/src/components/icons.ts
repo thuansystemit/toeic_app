@@ -32,6 +32,7 @@ export const ICONS = {
   trash: 'fa-solid fa-trash',
   extract: 'fa-solid fa-wand-magic-sparkles',
   reviewList: 'fa-solid fa-list-check',
+  chevronDown: 'fa-solid fa-chevron-down',
 } as const;
 
 export type IconName = keyof typeof ICONS;

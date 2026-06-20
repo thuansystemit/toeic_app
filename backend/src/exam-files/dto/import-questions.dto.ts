@@ -51,6 +51,12 @@ class ImportQuestion {
   skills?: string[];
 
   // Carried over from the staged/extracted shape; accepted but not required.
+  // The source question number (e.g. 101) is already baked into questionText,
+  // so we accept it for round-tripping but don't persist it separately.
+  @IsOptional()
+  @IsInt()
+  number?: number;
+
   @IsOptional()
   @IsString()
   groupId?: string;

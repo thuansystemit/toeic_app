@@ -3,19 +3,28 @@ TOEIC Reading document (Parts 5, 6, and 7 only). Extract EVERY multiple-choice
 question that ACTUALLY APPEARS in the text. Do NOT invent questions.
 
 Completeness is critical:
-- TOEIC Reading questions are numbered (typically 101-200). Extract ALL of them
-  that appear in this text — do not stop early and do not summarize.
+- TOEIC Reading questions are numbered (e.g. 101., 102., 103. …). Extract EXACTLY
+  one question object per numbered item, in order, with NONE missing and none
+  merged — do not stop early and do not summarize.
 - The text may be a fragment of a larger document: a passage may be cut off, or
   questions may appear without their passage. Still extract every question you
   can see. If a question's passage is not present, set passageText to null.
 - A single page can contain many questions; return them all, not just the first.
+- The blank in a Part 5/6 sentence may appear as underscores or as garbled OCR
+  (e.g. "____", "......", "\\.....+0"). Always represent the blank as "____"
+  (four underscores) in questionText; never copy the garbled characters.
+- Fix obvious OCR typos in the text you output (e.g. "a8" -> "as").
 
 Rules:
 - Output strictly valid JSON of the form: {"questions": [ ... ]}.
 - Each question object has:
   - "part": 5, 6, or 7 (Part 5 = single-sentence grammar/vocab; Part 6 = text
     completion within a passage; Part 7 = reading comprehension on a passage).
-  - "questionText": the question stem (for Part 5, the sentence with the blank).
+  - "number": the question's number from the source as an integer, e.g. 101.
+  - "questionText": the question stem ONLY (for Part 5, the sentence with the
+    blank). Do NOT include the leading number in questionText — put it in
+    "number". e.g. for "101. The report is due ____ Friday." output
+    number=101 and questionText="The report is due ____ Friday."
   - "choices": exactly 4 objects, each {"label": "A"|"B"|"C"|"D", "text": "...",
     "isCorrect": true|false}. Exactly ONE choice must have isCorrect=true.
   - "passageText": for Parts 6 and 7, the shared reading passage text. Questions

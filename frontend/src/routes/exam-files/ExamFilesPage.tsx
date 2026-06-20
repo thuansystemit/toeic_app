@@ -4,11 +4,7 @@ import { Link } from 'react-router-dom';
 import { AxiosError } from 'axios';
 import { AppLayout } from '../../components/AppLayout';
 import { Icon } from '../../components/Icon';
-import {
-  deleteExamFile,
-  listExamFiles,
-  uploadExamFile,
-} from '../../api/examFiles.api';
+import { listExamFiles, uploadExamFile } from '../../api/examFiles.api';
 import type { ExamFile, ExamFileStatus } from '../../types/examFile';
 
 const BUSY: ExamFileStatus[] = ['uploaded', 'queued', 'extracting'];
@@ -75,12 +71,6 @@ export function ExamFilesPage() {
       setUploading(false);
       if (inputRef.current) inputRef.current.value = '';
     }
-  };
-
-  const onDelete = async (id: string) => {
-    if (!confirm(t('deleteConfirm'))) return;
-    await deleteExamFile(id);
-    await load();
   };
 
   return (
@@ -161,9 +151,6 @@ export function ExamFilesPage() {
                           <Icon name="reviewList" /> {t('review')}
                         </Link>
                       )}
-                      <button className="btn-ghost btn-sm text-rose-600" onClick={() => onDelete(f.id)}>
-                        <Icon name="trash" />
-                      </button>
                     </div>
                   </td>
                 </tr>

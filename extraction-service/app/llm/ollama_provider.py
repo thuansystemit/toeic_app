@@ -10,6 +10,17 @@ class OllamaProvider:
         self.base_url = base_url.rstrip("/")
         self.model = model
 
+    def health(self) -> dict:
+        """Confirm the Ollama server is reachable and the model is pulled.
+        Raises (requests error) if the server can't be reached."""
+        r = requests.get(f"{self.base_url}/api/tags", timeout=10)
+        r.raise_for_status()
+        models = [m.get("name", "") for m in r.json().get("models", [])]
+        base = self.model.split(":")[0]
+        present = self.model in models or any(m.split(":")[0] == base for m in models)
+        return {"reachable": True, "model": self.model,
+                "model_present": present, "models": models}
+
     def extract_json(self, system_prompt: str, document_text: str) -> str:
         resp = requests.post(
             f"{self.base_url}/api/chat",

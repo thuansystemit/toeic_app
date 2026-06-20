@@ -106,6 +106,7 @@ export async function updateQuestion(
   input: {
     questionText?: string;
     explanationVi?: string;
+    passageText?: string;
     choices: NewQuestionInput['choices'];
     media?: NewQuestionInput['media'];
   },

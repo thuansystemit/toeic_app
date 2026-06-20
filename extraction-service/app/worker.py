@@ -9,12 +9,14 @@ Follows EDIES §17 (async stages), §18 (classified errors, user-safe messages),
 import json
 import signal
 import sys
+import time
 
 import redis
 
-from app.config import settings
+from app.config import get_settings, settings
 from app import backend_client, dead_letter
 from app.errors import ErrorCode, ExtractionError
+from app.llm.factory import get_provider
 from app.observability import METRICS, audit, correlation_id, incr
 from app.pipeline import run_extraction
 
@@ -26,13 +28,45 @@ def _stop(*_):
     _running = False
 
 
+def _preflight_llm(provider_name: str, corr: str, job_id: str) -> None:
+    """Confirm the LLM is reachable and the model is available BEFORE doing the
+    real extraction work — so failures show up immediately and clearly, not deep
+    inside chunk processing. Raises a classified ExtractionError if not."""
+    provider = get_provider(provider_name)
+    check = getattr(provider, "health", None)
+    base_url = getattr(provider, "base_url", None)
+    model = getattr(provider, "model", None)
+    if check is None:
+        return
+    try:
+        info = check()
+    except Exception as e:
+        audit("LLM_UNREACHABLE", correlationId=corr, jobId=job_id,
+              provider=provider.name, baseUrl=base_url, model=model, error=str(e))
+        raise ExtractionError(
+            ErrorCode.LLM_EXTRACTION_FAILED,
+            f"LLM not reachable at {base_url}: {e}",
+        )
+    audit("LLM_CHECK", correlationId=corr, jobId=job_id, provider=provider.name,
+          baseUrl=base_url, model=model, reachable=True,
+          modelPresent=info.get("model_present"))
+    if info.get("model_present") is False:
+        raise ExtractionError(
+            ErrorCode.LLM_EXTRACTION_FAILED,
+            f"model '{model}' is not pulled on the LLM host ({base_url})",
+        )
+
+
 def handle(client: redis.Redis, raw: str) -> None:
     msg = json.loads(raw)
     job_id = msg["jobId"]
     document_id = msg.get("examFileId", "")
     storage_key = msg["storageKey"]
     file_name = msg.get("fileName", storage_key)
-    provider = msg.get("provider") or settings.provider
+    # The LLM is switched purely via the mounted .env (re-read every job), so a
+    # change to LLM_PROVIDER takes effect immediately without a restart. The
+    # provider stamped on the job by the backend is ignored for selection.
+    provider = get_settings().provider
     part = msg.get("part")
     corr = correlation_id(job_id)
 
@@ -40,8 +74,11 @@ def handle(client: redis.Redis, raw: str) -> None:
           documentId=document_id, provider=provider, part=part)
     incr("documents_processed_total")
 
+    started = time.monotonic()
     try:
         backend_client.mark_started(job_id)
+        # Verify the LLM is reachable + the model is pulled before any real work.
+        _preflight_llm(provider, corr, job_id)
         data, mime = backend_client.download_file(storage_key)
 
         env = run_extraction(
@@ -84,6 +121,10 @@ def handle(client: redis.Redis, raw: str) -> None:
                         "An unexpected error occurred while processing the document.",
                         str(e))
 
+    finally:
+        audit("EXTRACTION_DURATION", correlationId=corr, jobId=job_id,
+              seconds=round(time.monotonic() - started, 1))
+
 
 def _report_failure(client, job_id, raw, user_message, internal):
     try:
@@ -97,7 +138,14 @@ def main() -> int:
     signal.signal(signal.SIGTERM, _stop)
     signal.signal(signal.SIGINT, _stop)
     client = redis.Redis.from_url(settings.redis_url, decode_responses=True)
-    audit("WORKER_UP", queue=settings.queue, provider=settings.provider)
+    audit("WORKER_UP", queue=settings.queue, provider=get_settings().provider)
+
+    # One-time connectivity check so a misconfigured LLM is obvious at boot
+    # (best-effort: log and keep running — each job re-reads .env and re-checks).
+    try:
+        _preflight_llm(get_settings().provider, "startup", "startup")
+    except ExtractionError as e:
+        audit("LLM_CHECK_FAILED", internal=e.internal)
 
     while _running:
         item = client.brpop(settings.queue, timeout=5)

@@ -21,6 +21,13 @@ export class UpdateQuestionDto {
   @MaxLength(5000)
   explanationVi?: string;
 
+  // Shared reading passage (Part 6 text completion, Part 7 reading). Replaces
+  // the question's existing `passage` stimulus when provided.
+  @IsOptional()
+  @IsString()
+  @MaxLength(20000)
+  passageText?: string;
+
   @IsArray()
   @ArrayMinSize(4)
   @ArrayMaxSize(4)

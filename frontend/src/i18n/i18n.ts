@@ -120,6 +120,23 @@ const resources = {
       imageStimulus: 'Image',
       audioStimulus: 'Audio',
       passageOptional: 'Passage text (optional)',
+      passage6Template: `[Email / Memo / Notice / Advertisement]
+
+To:
+From:
+Date:
+Subject:
+
+Dear ____,
+
+[Sentence 1] ____.
+[Sentence 2] ____.
+[Sentence 3] ____.
+[Sentence 4] ____.
+
+Sincerely,
+[Name]`,
+      passage6Hint: 'Standard Part 6 layout — edit the text and keep one ____ for each blank.',
       currentFile: 'current file ↗',
     },
     exam: {
@@ -372,6 +389,23 @@ const resources = {
       imageStimulus: 'Hình ảnh',
       audioStimulus: 'Âm thanh',
       passageOptional: 'Đoạn văn (không bắt buộc)',
+      passage6Template: `[Email / Ghi chú / Thông báo / Quảng cáo]
+
+Người nhận:
+Người gửi:
+Ngày:
+Chủ đề:
+
+Kính gửi ____,
+
+[Câu 1] ____.
+[Câu 2] ____.
+[Câu 3] ____.
+[Câu 4] ____.
+
+Trân trọng,
+[Tên]`,
+      passage6Hint: 'Bố cục chuẩn Part 6 — sửa nội dung và giữ mỗi chỗ trống là ____.',
       currentFile: 'tệp hiện tại ↗',
     },
     exam: {

@@ -15,6 +15,7 @@ class Choice(BaseModel):
 
 class ExtractedQuestion(BaseModel):
     part: int = Field(ge=5, le=7, description="TOEIC reading part 5-7")
+    number: Optional[int] = None  # the source question number, e.g. 101
     groupId: Optional[str] = None
     passageText: Optional[str] = None
     questionText: str
@@ -78,6 +79,7 @@ QUESTION_JSON_SCHEMA = {
                 "type": "object",
                 "properties": {
                     "part": {"type": "integer"},
+                    "number": {"type": ["integer", "null"]},
                     "groupId": {"type": ["string", "null"]},
                     "passageText": {"type": ["string", "null"]},
                     "questionText": {"type": "string"},

@@ -7,14 +7,28 @@ handles fully-scanned and mixed documents without OCR-ing pages that don't need
 it.
 """
 import io
+import re
 
 from app.observability import audit
 
 # A page with fewer than this many characters of real text is treated as a
 # scanned image and sent to OCR.
 _PAGE_TEXT_MIN_CHARS = 20
-# Render DPI for OCR — high enough for small exam print, not so high it crawls.
-_OCR_DPI = 200
+# Render DPI for OCR — higher = better character accuracy (fewer "as"->"a8"
+# style errors) at the cost of speed.
+_OCR_DPI = 300
+# Tesseract: LSTM engine (--oem 1), assume a uniform block of text (--psm 6).
+_OCR_CONFIG = "--oem 1 --psm 6"
+# A TOEIC sentence blank (a long underline) gets OCR'd as runs of dots / under-
+# scores / backslashes / pluses / zeros, e.g. "\.....+0". Collapse such runs
+# into a clean "____" so the question stem is readable.
+_BLANK_RE = re.compile(r"\\?[._]{2,}[\\._+=0\-]*")
+
+
+def _normalize_ocr(text: str) -> str:
+    text = _BLANK_RE.sub(" ____ ", text)
+    # Collapse the runs of spaces the substitution and OCR introduce.
+    return re.sub(r"[ \t]{2,}", " ", text)
 
 
 def extract_text(data: bytes, mime: str) -> str:
@@ -68,7 +82,7 @@ def _ocr_pdf_pages(data: bytes, pages: list[int]) -> dict[int, str]:
             try:
                 pix = doc[i].get_pixmap(dpi=_OCR_DPI)
                 img = Image.frombytes("RGB", (pix.width, pix.height), pix.samples)
-                out[i] = pytesseract.image_to_string(img)
+                out[i] = _normalize_ocr(pytesseract.image_to_string(img, config=_OCR_CONFIG))
             except Exception as e:
                 audit("OCR_PAGE_FAILED", page=i, error=str(e))
     return out

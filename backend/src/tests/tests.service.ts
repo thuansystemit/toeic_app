@@ -16,7 +16,7 @@ import { QuestionSkill } from './entities/question-skill.entity';
 import { CreateTestDto } from './dto/create-test.dto';
 import { CreateQuestionDto } from './dto/create-question.dto';
 import { UpdateQuestionDto } from './dto/update-question.dto';
-import { TOEIC_PARTS } from './toeic-structure';
+import { PART6_PASSAGE_TEMPLATE, TOEIC_PARTS } from './toeic-structure';
 import { UserRole } from '../users/user.entity';
 
 @Injectable()
@@ -223,6 +223,24 @@ export class TestsService {
       }
       const savedQuestions = await manager.save(questions, { chunk: 200 });
 
+      // Part 6 is text completion: seed each question slot with the standard
+      // passage template so authors start from a layout, not a blank box.
+      const part6 = orderedParts.find((p) => p.partNumber === 6);
+      if (part6) {
+        const passages = savedQuestions
+          .filter((q) => q.partId === part6.id)
+          .map((q, i) =>
+            manager.create(Stimulus, {
+              partId: part6.id,
+              questionId: q.id,
+              type: 'passage' as const,
+              passageText: PART6_PASSAGE_TEMPLATE,
+              sequence: i,
+            }),
+          );
+        if (passages.length > 0) await manager.save(passages, { chunk: 200 });
+      }
+
       const choices: Choice[] = [];
       for (const q of savedQuestions) {
         for (const label of ['A', 'B', 'C', 'D'] as const) {
@@ -419,6 +437,22 @@ export class TestsService {
           }),
         ),
       );
+      // Shared reading passage (Part 6/7). Replace the existing passage stimulus
+      // so edits to the passage are persisted.
+      if (dto.passageText !== undefined) {
+        await manager.delete(Stimulus, { questionId, type: 'passage' });
+        if (dto.passageText) {
+          await manager.save(
+            manager.create(Stimulus, {
+              partId,
+              questionId,
+              type: 'passage',
+              passageText: dto.passageText,
+              sequence: 0,
+            }),
+          );
+        }
+      }
       // Audio/image stimuli (Part 1 photo+audio, Part 2 audio, …). Replace any
       // existing stimulus of the same type so re-uploading swaps the media.
       for (const m of dto.media ?? []) {

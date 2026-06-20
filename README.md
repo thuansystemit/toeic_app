@@ -310,3 +310,157 @@ toeic_app/
 | Admin | `admin@toeic.local` | `Admin12345` |
 
 > Change these before any non-local deployment.
+
+---
+
+## Changing the extraction model (Ollama) — and applying config changes
+
+The extraction worker's LLM is configured in **`docker-compose.yml`** under the
+`extraction-worker` service:
+
+```yaml
+LLM_PROVIDER: ollama
+OLLAMA_BASE_URL: http://<ollama-host>:11434   # the machine running Ollama
+OLLAMA_MODEL: qwen2.5:3b                       # must be pulled on that host
+```
+
+### Steps to switch the model
+
+1. **Pull the model on the Ollama host first** (otherwise `/api/chat` returns
+   **404 "model not found"** and every job fails):
+   ```bash
+   # on the Ollama machine
+   ollama pull qwen2.5:3b
+   # …or remotely via the API
+   curl -X POST http://<ollama-host>:11434/api/pull -d '{"name":"qwen2.5:3b"}'
+   # verify it's installed
+   curl http://<ollama-host>:11434/api/tags
+   ```
+2. **Edit** `OLLAMA_MODEL` (and `OLLAMA_BASE_URL` if the host changed) in
+   `docker-compose.yml`.
+3. **Recreate the worker so it picks up the new config:**
+   ```bash
+   docker compose --profile extraction up -d extraction-worker
+   ```
+
+> ⚠️ **`docker compose restart` does NOT apply compose changes** — it reuses the
+> old container's environment. You must `up -d` (which **recreates** the
+> container) or add `--force-recreate`. Add `--build` as well if you changed the
+> worker's code or `Dockerfile`:
+> ```bash
+> docker compose --profile extraction up -d --build extraction-worker
+> ```
+
+4. **Verify** it took effect:
+   ```bash
+   docker exec toeic_extraction_worker printenv OLLAMA_MODEL   # new value
+   docker logs --tail 5 toeic_extraction_worker                # WORKER_UP, provider ollama
+   ```
+
+### Pick a model that fits the GPU
+| GPU VRAM | Recommended | Notes |
+|---|---|---|
+| 4 GB (e.g. GTX 1650) | `qwen2.5:3b` (~2 GB) | fully on GPU; fast |
+| 8 GB | `qwen2.5:7b` (~4.7 GB) | fits with headroom |
+| 12 GB+ | `qwen2.5:14b` (~9 GB) | best accuracy |
+
+A model larger than VRAM runs **CPU-only** (very slow) or **OOMs and crashes
+Ollama** — `qwen2.5:14b` on a 4 GB card will not work.
+
+### Same pattern for any compose config change
+Changing env/ports for **any** service applies the same way — `docker compose up -d <service>`
+recreates it with the new config (use `--build` if code/Dockerfile changed).
+`restart` alone only reboots the existing container and won't pick up
+`docker-compose.yml` edits.
+
+## Using a hosted LLM (Claude / OpenAI) instead of Ollama
+
+The extraction worker can run against a hosted provider for higher accuracy
+(recommended for Part 6/7 passages). It picks the provider from `LLM_PROVIDER`
+and reads the matching API key from the environment:
+
+| `LLM_PROVIDER` | Required key | Model env (optional) |
+|---|---|---|
+| `ollama` (default) | — | `OLLAMA_MODEL` |
+| `claude` | `ANTHROPIC_API_KEY` | `ANTHROPIC_MODEL` (default `claude-opus-4-8`) |
+| `openai` | `OPENAI_API_KEY` | `OPENAI_MODEL` (default `gpt-4o`) |
+
+Keys are wired through `docker-compose.yml` via variable substitution, so put
+them in a **`.env` file at the repo root** — it is gitignored and never
+committed (`.env.example` is the committed template).
+
+### Set up the Claude API key
+
+1. **Get a key** at <https://console.anthropic.com/settings/keys>.
+2. **Create `.env`** at the repo root (copy the template):
+   ```bash
+   cp .env.example .env
+   ```
+3. **Fill in** `.env`:
+   ```ini
+   LLM_PROVIDER=claude
+   ANTHROPIC_API_KEY=sk-ant-...
+   ANTHROPIC_MODEL=claude-opus-4-8
+   ```
+4. **No restart needed** — the worker mounts `.env` and re-reads it on every job,
+   so the next extraction uses the new provider. See the section below.
+5. **Verify** the next job picks it up:
+   ```bash
+   docker logs -f toeic_extraction_worker   # EXTRACTION_STARTED … "provider": "claude"
+   ```
+
+> The key is read in `extraction-service/app/config.py` (`ANTHROPIC_API_KEY`) and
+> used by `app/llm/factory.py` only when `LLM_PROVIDER=claude`; if the provider is
+> `claude` but the key is missing, the worker raises a clear error at startup.
+
+## Switching LLMs live via `.env` (no rebuild, no restart)
+
+The extraction worker treats the repo-root **`.env`** as the single, live source
+of truth for which LLM to use. `docker-compose.yml` mounts it read-only into the
+container (`./.env:/app/.env:ro`), and the worker **re-reads it on every job**
+(`get_settings()` in `extraction-service/app/config.py`). Editing `.env` takes
+effect on the **next extraction** — no code change, no image rebuild, no
+container restart.
+
+### Switch the provider
+
+Edit `.env` at the repo root:
+
+```ini
+# ollama (local) | claude | openai
+LLM_PROVIDER=claude
+
+ANTHROPIC_API_KEY=sk-ant-...
+ANTHROPIC_MODEL=claude-opus-4-8
+
+# used when LLM_PROVIDER=ollama (reach a host-run Ollama from Docker):
+OLLAMA_BASE_URL=http://host.docker.internal:11434
+OLLAMA_MODEL=qwen2.5:3b
+```
+
+Save the file, then just run the next extraction. To confirm a live value without
+waiting for a job:
+
+```bash
+docker exec toeic_extraction_worker \
+  python -c "from app.config import get_settings; print(get_settings().provider)"
+```
+
+### How it works
+
+- **Worker** picks the provider per job from `get_settings().provider` (the live
+  `.env`); the provider stamped on the job by the backend is ignored for
+  selection, so `.env` is the only switch.
+- **`get_provider()`** (`app/llm/factory.py`) reads the live model + API key too,
+  so changing `ANTHROPIC_MODEL` / `OLLAMA_MODEL` is also instant.
+- The stored result records the **actual** model used.
+
+### Caveats
+
+- **Ollama** must be reachable at `OLLAMA_BASE_URL` with the model pulled — that's
+  the only non-live prerequisite, but it's still configured entirely in `.env`.
+- The **backend** records a provider on the job from its own boot-time env (purely
+  cosmetic — the worker ignores it). Changing the backend's default still needs a
+  recreate (`docker compose up -d backend`).
+- `.env` is gitignored; keep real keys there. `.env.example` is the committed
+  template and must hold placeholders only.
