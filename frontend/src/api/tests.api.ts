@@ -152,3 +152,9 @@ export async function unpublishTest(testId: string): Promise<TestDto> {
   const res = await api.post<TestDto>(`/tests/${testId}/unpublish`);
   return res.data;
 }
+
+/** Mark this published test as the single public sample for guests. */
+export async function setSampleTest(testId: string): Promise<{ isSample: boolean }> {
+  const res = await api.post<{ isSample: boolean }>(`/tests/${testId}/sample`);
+  return res.data;
+}

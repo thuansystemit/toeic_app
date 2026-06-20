@@ -132,6 +132,21 @@ export class ExamFilesService {
     await this.examFiles.delete({ id: file.id }); // jobs cascade
   }
 
+  /** Update the editable title of an import (owner or admin). */
+  async update(
+    id: string,
+    userId: string,
+    role: UserRole,
+    title: string | undefined,
+  ): Promise<ExamFile> {
+    const file = await this.getOwned(id, userId, role);
+    if (title !== undefined) {
+      const trimmed = title.trim();
+      file.title = trimmed === '' ? null : trimmed;
+    }
+    return this.examFiles.save(file);
+  }
+
   /** Commit teacher-approved questions into a draft test (atomic). */
   async import(
     id: string,

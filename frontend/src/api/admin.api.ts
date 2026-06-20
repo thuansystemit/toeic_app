@@ -31,6 +31,24 @@ export async function listUsers(
   return res.data;
 }
 
+export interface ConfigEntry {
+  key: string;
+  value: string;
+  secret: boolean;
+}
+
+export interface AppConfig {
+  path: string;
+  present: boolean;
+  entries: ConfigEntry[];
+}
+
+/** Read-only .env config (secret values masked server-side). Admin only. */
+export async function getAppConfig(): Promise<AppConfig> {
+  const res = await api.get<AppConfig>('/admin/config');
+  return res.data;
+}
+
 export async function changeUserRole(
   userId: string,
   role: UserRole,
@@ -52,4 +70,14 @@ export async function reactivateUser(userId: string): Promise<AdminUser> {
 /** Permanently delete a user and all their content (irreversible). */
 export async function hardDeleteUser(userId: string): Promise<void> {
   await api.delete(`/admin/users/${userId}`);
+}
+
+/** Reset a user's password to a generated temp password (returned once). */
+export async function resetUserPassword(
+  userId: string,
+): Promise<{ tempPassword: string }> {
+  const res = await api.post<{ tempPassword: string }>(
+    `/admin/users/${userId}/reset-password`,
+  );
+  return res.data;
 }

@@ -17,8 +17,11 @@ import { AuthoringListPage } from './routes/authoring/AuthoringListPage';
 import { TestEditorPage } from './routes/authoring/TestEditorPage';
 import { KnowledgeGraphPage } from './routes/graph/KnowledgeGraphPage';
 import { UserManagementPage } from './routes/admin/UserManagementPage';
+import { ConfigurationPage } from './routes/admin/ConfigurationPage';
 import { ExamFilesPage } from './routes/exam-files/ExamFilesPage';
 import { ExamFileReviewPage } from './routes/exam-files/ExamFileReviewPage';
+import { WelcomePage } from './routes/public/WelcomePage';
+import { SamplePreviewPage } from './routes/public/SamplePreviewPage';
 
 // Module-level guard so the boot refresh fires exactly once, even though React
 // StrictMode double-invokes effects in dev (refresh tokens are single-use, so a
@@ -53,6 +56,10 @@ export default function App() {
     <BrowserRouter>
       <AuthBootstrap>
       <Routes>
+        {/* Public guest surface (no auth) */}
+        <Route path="/welcome" element={<WelcomePage />} />
+        <Route path="/welcome/sample" element={<SamplePreviewPage />} />
+
         <Route path="/login" element={<LoginPage />} />
         <Route path="/register" element={<RegisterPage />} />
         <Route path="/forgot-password" element={<ForgotPasswordPage />} />
@@ -68,8 +75,8 @@ export default function App() {
           <Route path="/results/:attemptId" element={<AttemptReviewPage />} />
         </Route>
 
-        {/* Teacher / admin */}
-        <Route element={<ProtectedRoute roles={['teacher', 'admin']} />}>
+        {/* Teacher only — admins focus on management, not authoring */}
+        <Route element={<ProtectedRoute roles={['teacher']} />}>
           <Route path="/authoring" element={<AuthoringListPage />} />
           <Route path="/authoring/:testId" element={<TestEditorPage />} />
           <Route path="/graph" element={<KnowledgeGraphPage />} />
@@ -80,6 +87,7 @@ export default function App() {
         {/* Admin only */}
         <Route element={<ProtectedRoute roles={['admin']} />}>
           <Route path="/admin/users" element={<UserManagementPage />} />
+          <Route path="/admin/config" element={<ConfigurationPage />} />
         </Route>
 
         <Route path="*" element={<Navigate to="/" replace />} />

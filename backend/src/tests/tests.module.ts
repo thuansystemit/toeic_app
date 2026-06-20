@@ -9,6 +9,7 @@ import { Skill } from './entities/skill.entity';
 import { QuestionSkill } from './entities/question-skill.entity';
 import { TestsService } from './tests.service';
 import { TestsController } from './tests.controller';
+import { PublicTestsController } from './public-tests.controller';
 
 @Module({
   imports: [
@@ -23,7 +24,7 @@ import { TestsController } from './tests.controller';
     ]),
   ],
   providers: [TestsService],
-  controllers: [TestsController],
+  controllers: [TestsController, PublicTestsController],
   exports: [TestsService],
 })
 export class TestsModule {}

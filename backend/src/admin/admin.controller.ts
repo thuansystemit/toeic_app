@@ -30,6 +30,12 @@ export class AdminController {
     return this.adminService.listUsers(query);
   }
 
+  // Read-only view of the .env config (secrets masked) — admin only.
+  @Get('config')
+  getConfig() {
+    return this.adminService.getConfig();
+  }
+
   @Patch('users/:userId/role')
   changeRole(
     @CurrentUser() admin: AuthenticatedUser,
@@ -50,6 +56,12 @@ export class AdminController {
   @Post('users/:userId/reactivate')
   reactivate(@Param('userId', ParseUUIDPipe) userId: string) {
     return this.adminService.reactivate(userId);
+  }
+
+  // Reset a user's password to a generated temp password (returned once).
+  @Post('users/:userId/reset-password')
+  resetPassword(@Param('userId', ParseUUIDPipe) userId: string) {
+    return this.adminService.resetPassword(userId);
   }
 
   @Delete('users/:userId')

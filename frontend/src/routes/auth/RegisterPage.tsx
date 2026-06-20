@@ -4,6 +4,7 @@ import { Link, useNavigate } from 'react-router-dom';
 import { AxiosError } from 'axios';
 import { register } from '../../api/auth.api';
 import { useAuthStore } from '../../store/authStore';
+import { roleHome } from '../../lib/roleHome';
 import { AuthShell } from '../../components/AuthShell';
 import { SocialAuth } from '../../components/SocialAuth';
 
@@ -25,7 +26,7 @@ export function RegisterPage() {
     try {
       const res = await register({ email, password, displayName });
       setAuth(res.user, res.accessToken);
-      navigate('/');
+      navigate(roleHome(res.user.role));
     } catch (err) {
       const status = (err as AxiosError).response?.status;
       if (status === 409) setError(t('errorEmailTaken'));
@@ -71,7 +72,7 @@ export function RegisterPage() {
       <SocialAuth
         onAuthed={(res) => {
           setAuth(res.user, res.accessToken);
-          navigate('/');
+          navigate(roleHome(res.user.role));
         }}
       />
     </AuthShell>

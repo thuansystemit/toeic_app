@@ -13,6 +13,7 @@ import {
   publishPart,
   publishTest,
   setQuestionSkills,
+  setSampleTest,
   unpublishPart,
   unpublishTest,
   updateQuestion,
@@ -92,6 +93,12 @@ export function TestEditorPage() {
     await load();
   };
 
+  const onSetSample = async () => {
+    if (!testId) return;
+    await setSampleTest(testId);
+    await load();
+  };
+
   const onPublishPart = async (partId: string) => {
     if (!testId) return;
     setMsg(null);
@@ -130,9 +137,18 @@ export function TestEditorPage() {
               {t('publish')}
             </button>
           ) : (
-            <button onClick={onUnpublish} className="btn-ghost btn-sm">
-              {t('unpublish')}
-            </button>
+            <>
+              {test.isSample ? (
+                <span className="badge-green">{t('publicSample')}</span>
+              ) : (
+                <button onClick={onSetSample} className="btn-soft btn-sm">
+                  {t('setSample')}
+                </button>
+              )}
+              <button onClick={onUnpublish} className="btn-ghost btn-sm">
+                {t('unpublish')}
+              </button>
+            </>
           )}
         </div>
       </div>

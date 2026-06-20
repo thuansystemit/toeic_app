@@ -124,10 +124,14 @@ export class AuthController {
     result: AuthResult,
   ): { user: PublicUser; accessToken: string } {
     // ADR-011: refresh token lives in an HttpOnly cookie, never in the body.
-    const isProd = this.config.get<string>('nodeEnv') === 'production';
+    // `Secure` must NOT be tied to NODE_ENV: a production build served over plain
+    // HTTP (e.g. http://<host>:8080) would set a Secure cookie the browser then
+    // drops, so the session is lost on refresh. Gate it on COOKIE_SECURE instead
+    // — default false (HTTP), set true only behind HTTPS/TLS.
+    const secure = process.env.COOKIE_SECURE === 'true';
     res.cookie(REFRESH_COOKIE, result.refreshToken, {
       httpOnly: true,
-      secure: isProd,
+      secure,
       sameSite: 'lax',
       path: REFRESH_COOKIE_PATH,
       maxAge: this.authService.refreshTtlDays() * 24 * 60 * 60 * 1000,

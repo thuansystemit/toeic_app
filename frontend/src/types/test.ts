@@ -64,6 +64,7 @@ export interface TestDto {
   description: string | null;
   status: TestStatus;
   timeLimitMinutes: number;
+  isSample?: boolean;
   parts?: PartDto[];
 }
 

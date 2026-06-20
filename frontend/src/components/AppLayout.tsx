@@ -3,6 +3,7 @@ import { useTranslation } from 'react-i18next';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { logout } from '../api/auth.api';
 import { useAuthStore } from '../store/authStore';
+import { roleHome } from '../lib/roleHome';
 import { LocaleSwitcher } from './LocaleSwitcher';
 import { Icon } from './Icon';
 
@@ -11,30 +12,35 @@ export function AppLayout({ children }: { children: ReactNode }) {
   const navigate = useNavigate();
   const location = useLocation();
   const { user, clear } = useAuthStore();
-  const isAuthor = user?.role === 'teacher' || user?.role === 'admin';
-  const isAdmin = user?.role === 'admin';
+  const role = user?.role;
 
   const onLogout = async () => {
     try {
       await logout();
     } finally {
       clear();
-      navigate('/login');
+      navigate('/welcome');
     }
   };
 
-  const links = [
-    { to: '/tests', label: t('navTests') },
-    { to: '/results', label: t('navResults') },
-    ...(isAuthor
+  // Role-focused navigation: admins manage, teachers author, learners practice.
+  const links =
+    role === 'admin'
       ? [
-          { to: '/authoring', label: t('navAuthoring') },
-          { to: '/exam-files', label: t('navImport') },
-          { to: '/graph', label: t('navGraph') },
+          { to: '/admin/users', label: t('navAdmin') },
+          { to: '/admin/config', label: t('navConfig') },
         ]
-      : []),
-    ...(isAdmin ? [{ to: '/admin/users', label: t('navAdmin') }] : []),
-  ];
+      : role === 'teacher'
+        ? [
+            { to: '/authoring', label: t('navAuthoring') },
+            { to: '/exam-files', label: t('navImport') },
+            { to: '/graph', label: t('navGraph') },
+            { to: '/tests', label: t('navTests') },
+          ]
+        : [
+            { to: '/tests', label: t('navTests') },
+            { to: '/results', label: t('navResults') },
+          ];
 
   const initials = (user?.displayName ?? '?')
     .split(' ')
@@ -48,7 +54,7 @@ export function AppLayout({ children }: { children: ReactNode }) {
       <header className="sticky top-0 z-30 border-b border-slate-100 bg-white/80 backdrop-blur">
         <div className="mx-auto flex max-w-6xl items-center justify-between gap-4 px-5 py-3">
           <div className="flex items-center gap-2">
-            <Link to="/" className="flex items-center gap-2 font-extrabold text-slate-800">
+            <Link to={roleHome(role)} className="flex items-center gap-2 font-extrabold text-slate-800">
               <span className="grid h-9 w-9 place-items-center rounded-2xl bg-brand-500 text-lg text-white shadow-soft">
                 <Icon name="brand" />
               </span>

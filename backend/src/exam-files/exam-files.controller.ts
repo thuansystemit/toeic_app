@@ -5,6 +5,7 @@ import {
   Get,
   Param,
   ParseUUIDPipe,
+  Patch,
   Post,
   UploadedFile,
   UseGuards,
@@ -18,6 +19,7 @@ import { CurrentUser } from '../auth/current-user.decorator';
 import { AuthenticatedUser } from '../auth/jwt.strategy';
 import { ExamFilesService } from './exam-files.service';
 import { ImportQuestionsDto } from './dto/import-questions.dto';
+import { UpdateExamFileDto } from './dto/update-exam-file.dto';
 
 @Controller('exam-files')
 @UseGuards(JwtAuthGuard, RolesGuard)
@@ -40,6 +42,16 @@ export class ExamFilesController {
   @Get()
   list(@CurrentUser() user: AuthenticatedUser) {
     return this.examFilesService.list(user.id, user.role);
+  }
+
+  // Update the editable title of an import (owner or admin).
+  @Patch(':id')
+  update(
+    @CurrentUser() user: AuthenticatedUser,
+    @Param('id', ParseUUIDPipe) id: string,
+    @Body() dto: UpdateExamFileDto,
+  ) {
+    return this.examFilesService.update(id, user.id, user.role, dto.title);
   }
 
   @Get(':id')

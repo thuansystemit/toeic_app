@@ -26,6 +26,8 @@ import { ExamFiles1700000004000 } from './migrations/1700000004000-ExamFiles';
 import { PartStatus1700000005000 } from './migrations/1700000005000-PartStatus';
 import { Skills1700000006000 } from './migrations/1700000006000-Skills';
 import { ExamFilePart1700000007000 } from './migrations/1700000007000-ExamFilePart';
+import { ExamFileTitle1700000008000 } from './migrations/1700000008000-ExamFileTitle';
+import { TestSample1700000009000 } from './migrations/1700000009000-TestSample';
 
 // Load backend/.env when running the TypeORM CLI outside of Nest's runtime.
 loadEnv();
@@ -65,6 +67,8 @@ export const AppDataSource = new DataSource({
     PartStatus1700000005000,
     Skills1700000006000,
     ExamFilePart1700000007000,
+    ExamFileTitle1700000008000,
+    TestSample1700000009000,
   ],
   synchronize: false,
   logging: false,

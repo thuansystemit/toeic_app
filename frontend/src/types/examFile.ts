@@ -9,6 +9,7 @@ export type ExamFileStatus =
 export interface ExamFile {
   id: string;
   originalFilename: string;
+  title: string | null;
   mimeType: string;
   sizeBytes: string;
   status: ExamFileStatus;
