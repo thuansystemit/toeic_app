@@ -199,4 +199,14 @@ export class TestsController {
   ) {
     return this.testsService.unpublish(id, user.id, user.role);
   }
+
+  // Mark this published test as the single public sample guests can preview.
+  @Post(':id/sample')
+  @Roles('teacher', 'admin')
+  setSample(
+    @CurrentUser() user: AuthenticatedUser,
+    @Param('id', ParseUUIDPipe) id: string,
+  ) {
+    return this.testsService.setSample(id, user.id, user.role);
+  }
 }

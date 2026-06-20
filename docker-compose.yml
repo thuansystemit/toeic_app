@@ -49,6 +49,10 @@ services:
       DB_HOST: postgres
       DB_PORT: 5432
       REDIS_URL: redis://redis:6379/0
+      # Refresh-token cookie Secure flag. Keep false when serving over plain HTTP
+      # (http://<host>:8080) or the browser drops the cookie and sessions are lost
+      # on refresh. Set true only behind HTTPS/TLS.
+      COOKIE_SECURE: ${COOKIE_SECURE:-false}
       # Default extraction provider for new jobs — keep in sync with the worker's
       # LLM_PROVIDER via the repo-root .env (ollama | claude | openai).
       LLM_PROVIDER: ${LLM_PROVIDER:-ollama}
@@ -56,6 +60,8 @@ services:
       - "3000:3000"
     volumes:
       - toeic_uploads:/app/backend/uploads
+      # Read-only .env for the admin Configuration page (secrets masked in the API).
+      - ./.env:/app/.env:ro
 
   # React SPA served by nginx; reverse-proxies /api to the backend so the UI
   # works over any host/IP. Reach it at http://<server-ip>:8080

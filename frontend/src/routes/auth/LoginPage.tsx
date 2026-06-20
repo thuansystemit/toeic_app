@@ -4,6 +4,7 @@ import { Link, useNavigate } from 'react-router-dom';
 import { AxiosError } from 'axios';
 import { login } from '../../api/auth.api';
 import { useAuthStore } from '../../store/authStore';
+import { roleHome } from '../../lib/roleHome';
 import { AuthShell } from '../../components/AuthShell';
 import { SocialAuth } from '../../components/SocialAuth';
 
@@ -24,7 +25,7 @@ export function LoginPage() {
     try {
       const res = await login({ email, password });
       setAuth(res.user, res.accessToken);
-      navigate('/');
+      navigate(roleHome(res.user.role));
     } catch (err) {
       const status = (err as AxiosError).response?.status;
       setError(status === 401 ? t('errorInvalidCredentials') : t('errorGeneric'));
@@ -42,6 +43,10 @@ export function LoginPage() {
           {t('noAccount')}{' '}
           <Link to="/register" className="font-bold text-brand-600 hover:underline">
             {t('goRegister')}
+          </Link>
+          <span className="mx-2 text-slate-300">·</span>
+          <Link to="/welcome" className="font-bold text-brand-600 hover:underline">
+            {t('browseAsGuest')}
           </Link>
         </>
       }

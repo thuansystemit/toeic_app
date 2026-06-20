@@ -40,3 +40,11 @@ export async function importExamFile(
 export async function deleteExamFile(id: string): Promise<void> {
   await api.delete(`/exam-files/${id}`);
 }
+
+export async function updateExamFile(
+  id: string,
+  patch: { title?: string },
+): Promise<ExamFile> {
+  const res = await api.patch<ExamFile>(`/exam-files/${id}`, patch);
+  return res.data;
+}

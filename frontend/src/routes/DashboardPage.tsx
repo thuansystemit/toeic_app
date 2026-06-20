@@ -18,14 +18,18 @@ function greetingKey(): 'morning' | 'afternoon' | 'evening' {
 export function DashboardPage() {
   const { t } = useTranslation(['dashboard', 'common', 'review']);
   const user = useAuthStore((s) => s.user);
-  const isAuthor = user?.role === 'teacher' || user?.role === 'admin';
   const [attempts, setAttempts] = useState<AttemptSummary[]>([]);
 
   useEffect(() => {
     listMyAttempts().then(setAttempts).catch(() => undefined);
   }, []);
 
+  const inProgress = attempts.find((a) => a.status === 'in-progress');
   const done = attempts.filter((a) => a.status !== 'in-progress');
+  const recent = done
+    .slice()
+    .sort((a, b) => (b.submittedAt ?? '').localeCompare(a.submittedAt ?? ''))
+    .slice(0, 5);
   const best = done.reduce<number>(
     (m, a) => Math.max(m, a.total?.scaledScore ?? 0),
     0,
@@ -68,12 +72,60 @@ export function DashboardPage() {
         </div>
       </div>
 
+      {/* resume in-progress attempt */}
+      {inProgress && (
+        <Link
+          to={`/exam/${inProgress.id}`}
+          className="mt-7 flex items-center justify-between gap-3 rounded-2xl bg-amber-50 px-5 py-4 transition hover:bg-amber-100"
+        >
+          <span className="flex items-center gap-3 font-semibold text-amber-800">
+            <Icon name="timer" /> {t('resumeTitle')}
+          </span>
+          <span className="text-sm font-bold text-amber-700">{t('resumeCta')} →</span>
+        </Link>
+      )}
+
       {/* quick actions */}
-      <div className="mt-7 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+      <div className="mt-7 grid gap-4 sm:grid-cols-2">
         <ActionCard to="/tests" icon="headphones" title={t('actTakeTitle')} body={t('actTakeBody')} />
         <ActionCard to="/results" icon="results" title={t('actResultsTitle')} body={t('actResultsBody')} />
-        {isAuthor && (
-          <ActionCard to="/authoring" icon="author" title={t('actAuthorTitle')} body={t('actAuthorBody')} />
+      </div>
+
+      {/* recent results */}
+      <div className="mt-7">
+        <div className="mb-3 flex items-center justify-between">
+          <h2 className="text-lg font-extrabold text-slate-800">{t('recentTitle')}</h2>
+          {recent.length > 0 && (
+            <Link to="/results" className="text-sm font-bold text-brand-600 hover:underline">
+              {t('viewAll')}
+            </Link>
+          )}
+        </div>
+        {recent.length === 0 ? (
+          <p className="rounded-2xl bg-slate-50 px-4 py-6 text-center text-slate-400">
+            {t('noAttempts')}
+          </p>
+        ) : (
+          <ul className="flex flex-col gap-2">
+            {recent.map((a) => (
+              <li key={a.id}>
+                <Link
+                  to={`/results/${a.id}`}
+                  className="card flex items-center justify-between gap-3 p-4 transition hover:shadow-soft"
+                >
+                  <span className="text-sm font-semibold text-slate-600">
+                    {a.submittedAt ? new Date(a.submittedAt).toLocaleString() : '—'}
+                  </span>
+                  <span className="flex items-center gap-2">
+                    <span className="text-lg font-extrabold text-slate-800">
+                      {a.total?.scaledScore ?? '—'}
+                    </span>
+                    <span className="text-xs font-bold text-slate-400">/ 990</span>
+                  </span>
+                </Link>
+              </li>
+            ))}
+          </ul>
         )}
       </div>
     </AppLayout>

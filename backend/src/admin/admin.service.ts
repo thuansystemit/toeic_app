@@ -1,3 +1,6 @@
+import * as fs from 'fs';
+import { randomBytes } from 'crypto';
+import * as bcrypt from 'bcrypt';
 import {
   ForbiddenException,
   Injectable,
@@ -8,6 +11,26 @@ import { Brackets, DataSource, Repository } from 'typeorm';
 import { User, UserRole, UserStatus } from '../users/user.entity';
 import { RefreshToken } from '../auth/refresh-token.entity';
 import { ListUsersQuery } from './dto/list-users.query';
+
+export interface ConfigEntry {
+  key: string;
+  value: string;
+  secret: boolean;
+}
+
+export interface AppConfigView {
+  path: string;
+  present: boolean;
+  entries: ConfigEntry[];
+}
+
+// Keys whose values are secrets — masked before leaving the server.
+const SECRET_KEY = /KEY|SECRET|TOKEN|PASSWORD/i;
+
+function maskSecret(value: string): string {
+  if (!value) return '';
+  return value.length <= 4 ? '••••' : '••••••••' + value.slice(-4);
+}
 
 export interface AdminUserView {
   id: string;
@@ -32,6 +55,30 @@ export class AdminService {
     private readonly refreshTokens: Repository<RefreshToken>,
     private readonly dataSource: DataSource,
   ) {}
+
+  /** Read the mounted .env and return its entries, masking secret values.
+   * Read-only view for the admin Configuration page. */
+  getConfig(): AppConfigView {
+    const path = process.env.LLM_ENV_FILE ?? '/app/.env';
+    let raw: string;
+    try {
+      raw = fs.readFileSync(path, 'utf8');
+    } catch {
+      return { path, present: false, entries: [] };
+    }
+    const entries: ConfigEntry[] = [];
+    for (const line of raw.split('\n')) {
+      const trimmed = line.trim();
+      if (!trimmed || trimmed.startsWith('#') || !trimmed.includes('=')) continue;
+      const eq = trimmed.indexOf('=');
+      const key = trimmed.slice(0, eq).trim();
+      if (!key) continue;
+      const rawValue = trimmed.slice(eq + 1).trim().replace(/^['"]|['"]$/g, '');
+      const secret = SECRET_KEY.test(key);
+      entries.push({ key, value: secret ? maskSecret(rawValue) : rawValue, secret });
+    }
+    return { path, present: true, entries };
+  }
 
   async listUsers(query: ListUsersQuery): Promise<Paginated<AdminUserView>> {
     const page = query.page ?? 1;
@@ -108,6 +155,22 @@ export class AdminService {
     user.status = 'active';
     await this.users.save(user);
     return this.toView(user);
+  }
+
+  /** Reset a user's password to a generated temporary one, returned ONCE so the
+   * admin can share it. Revokes the user's sessions so they must log in afresh.
+   * The temp password satisfies the policy (>= 8 chars, contains a digit). */
+  async resetPassword(userId: string): Promise<{ tempPassword: string }> {
+    const user = await this.getOrThrow(userId);
+    const tempPassword =
+      'Tmp-' + randomBytes(4).toString('hex') + (10 + Math.floor(Math.random() * 90));
+    user.passwordHash = await bcrypt.hash(tempPassword, 12);
+    await this.users.save(user);
+    await this.refreshTokens.update(
+      { userId, revoked: false },
+      { revoked: true },
+    );
+    return { tempPassword };
   }
 
   /**

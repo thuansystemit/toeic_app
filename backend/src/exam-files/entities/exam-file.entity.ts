@@ -22,6 +22,11 @@ export class ExamFile {
   @Column({ name: 'original_filename', type: 'varchar', length: 255 })
   originalFilename!: string;
 
+  // Optional human-friendly title; null for pre-existing rows, editable by the
+  // teacher after import.
+  @Column({ type: 'varchar', length: 255, nullable: true })
+  title!: string | null;
+
   @Column({ name: 'storage_key', type: 'varchar', length: 500 })
   storageKey!: string;
 

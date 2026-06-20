@@ -5,6 +5,7 @@ import {
   changeUserRole,
   deactivateUser,
   hardDeleteUser,
+  resetUserPassword,
   listUsers,
   reactivateUser,
   type AdminUser,
@@ -25,6 +26,8 @@ export function UserManagementPage() {
   const [roleFilter, setRoleFilter] = useState<UserRole | ''>('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // Temp password shown once after an admin reset.
+  const [resetResult, setResetResult] = useState<{ name: string; password: string } | null>(null);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -146,6 +149,21 @@ export function UserManagementPage() {
                   </td>
                   <td className="px-5 py-3">
                     <div className="flex items-center justify-end gap-1">
+                      <button
+                        className="btn-ghost btn-sm"
+                        title={t('resetPassword')}
+                        onClick={async () => {
+                          setError(null);
+                          try {
+                            const { tempPassword } = await resetUserPassword(u.id);
+                            setResetResult({ name: u.displayName, password: tempPassword });
+                          } catch (e) {
+                            setError((e as Error).message);
+                          }
+                        }}
+                      >
+                        {t('resetPassword')}
+                      </button>
                       {u.status === 'active' ? (
                         <button className="btn-ghost btn-sm" disabled={isSelf} onClick={() => act(() => deactivateUser(u.id))}>
                           {t('deactivate')}
@@ -187,6 +205,35 @@ export function UserManagementPage() {
         </button>
       </div>
       {loading && <p className="mt-3 text-center text-sm text-slate-400">{t('loading', { ns: 'common' })}</p>}
+
+      {resetResult && (
+        <div
+          className="fixed inset-0 z-50 grid place-items-center bg-slate-900/40 p-4"
+          onClick={() => setResetResult(null)}
+        >
+          <div className="card w-full max-w-md p-6" onClick={(e) => e.stopPropagation()}>
+            <h2 className="text-lg font-extrabold text-slate-800">{t('resetDoneTitle')}</h2>
+            <p className="mt-1 text-sm text-slate-500">
+              {t('resetDoneBody', { name: resetResult.name })}
+            </p>
+            <div className="mt-4 flex items-center gap-2">
+              <code className="flex-1 rounded-xl bg-slate-100 px-3 py-2 font-mono text-sm text-slate-800">
+                {resetResult.password}
+              </code>
+              <button
+                className="btn-soft btn-sm"
+                onClick={() => navigator.clipboard?.writeText(resetResult.password)}
+              >
+                {t('copy')}
+              </button>
+            </div>
+            <p className="mt-3 text-xs text-amber-700">{t('resetDoneWarn')}</p>
+            <button className="btn-primary mt-4 w-full" onClick={() => setResetResult(null)}>
+              {t('done', { ns: 'common' })}
+            </button>
+          </div>
+        </div>
+      )}
     </AppLayout>
   );
 }

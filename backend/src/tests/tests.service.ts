@@ -276,6 +276,76 @@ export class TestsService {
     });
   }
 
+  // --- Public (guest) surface: no auth, no question content ---
+
+  /** Published tests as locked teasers for guests: metadata + counts only. */
+  async listPublishedPublic(): Promise<
+    {
+      id: string;
+      title: string;
+      description: string | null;
+      timeLimitMinutes: number;
+      isSample: boolean;
+      partCount: number;
+      questionCount: number;
+    }[]
+  > {
+    const tests = await this.tests.find({
+      where: { status: 'published' },
+      order: { isSample: 'DESC', createdAt: 'DESC' },
+    });
+    const cards = [];
+    for (const t of tests) {
+      const summaries = await this.partSummaries(t.id);
+      cards.push({
+        id: t.id,
+        title: t.title,
+        description: t.description,
+        timeLimitMinutes: t.timeLimitMinutes,
+        isSample: t.isSample,
+        partCount: summaries.filter((s) => s.count > 0).length,
+        questionCount: summaries.reduce((a, s) => a + s.count, 0),
+      });
+    }
+    return cards;
+  }
+
+  /** The full sample test for a guest preview (answers + explanations shown).
+   * Falls back to the most recently published test if none is flagged. */
+  async getSamplePublic(): Promise<Test | null> {
+    let test = await this.tests.findOne({
+      where: { status: 'published', isSample: true },
+    });
+    if (!test) {
+      test = await this.tests.findOne({
+        where: { status: 'published' },
+        order: { createdAt: 'DESC' },
+      });
+    }
+    return test ? this.loadTree(test.id) : null;
+  }
+
+  /** Mark a published test as the single public sample (owner or admin). */
+  async setSample(
+    testId: string,
+    userId: string,
+    role: UserRole,
+  ): Promise<{ isSample: boolean }> {
+    const test = await this.tests.findOne({ where: { id: testId } });
+    if (!test) throw new NotFoundException('Test not found');
+    if (test.createdBy !== userId && role !== 'admin') {
+      throw new ForbiddenException('Not your test');
+    }
+    if (test.status !== 'published') {
+      throw new BadRequestException('Only a published test can be the sample');
+    }
+    await this.dataSource.transaction(async (m) => {
+      await m.update(Test, { isSample: true }, { isSample: false });
+      await m.update(Test, { id: testId }, { isSample: true });
+    });
+    return { isSample: true };
+  }
+
   /** Full authoring tree; only the owner (or an admin) may view a draft. */
   async getAuthoringView(
     testId: string,

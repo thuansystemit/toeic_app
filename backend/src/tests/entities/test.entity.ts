@@ -33,6 +33,10 @@ export class Test {
   @Column({ type: 'int', default: 1 })
   version!: number;
 
+  // The single published test guests may preview without an account.
+  @Column({ name: 'is_sample', type: 'boolean', default: false })
+  isSample!: boolean;
+
   @OneToMany(() => Part, (part) => part.test)
   parts!: Part[];
 

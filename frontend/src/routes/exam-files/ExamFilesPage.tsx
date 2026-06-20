@@ -4,7 +4,7 @@ import { Link } from 'react-router-dom';
 import { AxiosError } from 'axios';
 import { AppLayout } from '../../components/AppLayout';
 import { Icon } from '../../components/Icon';
-import { listExamFiles, uploadExamFile } from '../../api/examFiles.api';
+import { listExamFiles, updateExamFile, uploadExamFile } from '../../api/examFiles.api';
 import type { ExamFile, ExamFileStatus } from '../../types/examFile';
 
 const BUSY: ExamFileStatus[] = ['uploaded', 'queued', 'extracting'];
@@ -24,6 +24,47 @@ function StatusBadge({ status }: { status: ExamFileStatus }) {
     <span className={map[status]}>
       {spin && <Icon name="spinner" />} {t(`status_${status}`)}
     </span>
+  );
+}
+
+/** Editable title for an import: type, then click Update (or press Enter). */
+function TitleCell({ file, onSaved }: { file: ExamFile; onSaved: (f: ExamFile) => void }) {
+  const { t } = useTranslation(['examFiles', 'common']);
+  const [value, setValue] = useState(file.title ?? '');
+  const [saving, setSaving] = useState(false);
+  const dirty = value !== (file.title ?? '');
+
+  const save = async () => {
+    if (!dirty) return;
+    setSaving(true);
+    try {
+      onSaved(await updateExamFile(file.id, { title: value }));
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <div className="flex items-center gap-2">
+      <input
+        className="w-full rounded-lg border border-slate-200 px-2 py-1 text-sm focus:border-brand-400 focus:outline-none"
+        placeholder={t('titlePlaceholder')}
+        value={value}
+        disabled={saving}
+        onChange={(e) => setValue(e.target.value)}
+        onKeyDown={(e) => {
+          if (e.key === 'Enter') void save();
+        }}
+      />
+      <button
+        type="button"
+        className="btn-soft btn-sm shrink-0"
+        disabled={!dirty || saving}
+        onClick={save}
+      >
+        {saving ? t('loading', { ns: 'common' }) : t('update', { ns: 'common' })}
+      </button>
+    </div>
   );
 }
 
@@ -121,6 +162,7 @@ export function ExamFilesPage() {
             <thead>
               <tr className="border-b border-slate-100 text-left text-xs font-bold uppercase text-slate-400">
                 <th className="px-5 py-3">{t('file')}</th>
+                <th className="px-5 py-3">{t('titleColumn')}</th>
                 <th className="px-5 py-3">{t('status')}</th>
                 <th className="px-5 py-3">{t('questions')}</th>
                 <th className="px-5 py-3">{t('uploaded')}</th>
@@ -138,6 +180,14 @@ export function ExamFilesPage() {
                     {f.status === 'failed' && f.error && (
                       <div className="mt-1 text-xs text-rose-500">{f.error}</div>
                     )}
+                  </td>
+                  <td className="px-5 py-3 min-w-[12rem]">
+                    <TitleCell
+                      file={f}
+                      onSaved={(updated) =>
+                        setFiles((prev) => prev.map((x) => (x.id === updated.id ? updated : x)))
+                      }
+                    />
                   </td>
                   <td className="px-5 py-3"><StatusBadge status={f.status} /></td>
                   <td className="px-5 py-3 text-slate-600">{f.questionCount || '—'}</td>
