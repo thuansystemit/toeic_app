@@ -71,6 +71,10 @@ services:
       dockerfile: frontend/Dockerfile
       args:
         VITE_API_URL: /api
+        # Social login: set these in the repo-root .env to show the real
+        # Google/Facebook buttons (empty → buttons render disabled).
+        VITE_GOOGLE_CLIENT_ID: ${VITE_GOOGLE_CLIENT_ID:-}
+        VITE_FACEBOOK_APP_ID: ${VITE_FACEBOOK_APP_ID:-}
     container_name: toeic_frontend
     restart: unless-stopped
     depends_on:

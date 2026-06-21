@@ -1,32 +1,67 @@
 # TOEIC Learning Platform
 
-A full-stack platform for learning TOEIC. Teachers and admins author tests
-(7 parts, audio/image/passage stimuli); learners register, take **full timed
-exams** with strict exam fidelity or **practice by part** with instant feedback,
-then review their results with Vietnamese explanations and scaled scores.
+A full-stack platform for learning TOEIC with a **role-tailored experience** for
+every visitor: **guests** browse a public landing page and try one sample test
+without an account; **learners** register, take **full timed exams** with strict
+exam fidelity or **practice by part** with instant feedback, then review their
+results with Vietnamese explanations and scaled scores; **teachers** author tests
+(7 parts, audio/image/passage stimuli) and import questions; **admins** manage
+users and configuration. Each role lands on its own focused home and sees only
+the navigation it needs.
 
 It also offers **AI-assisted question import**: upload a reading PDF/DOCX and a
 separate **Python extraction microservice** uses an LLM (Ollama / Claude / OpenAI)
 to extract questions for human review before import.
 
-- **Backend:** NestJS (TypeScript) · PostgreSQL via TypeORM · JWT auth (HS256, refresh in HttpOnly cookie)
-- **Frontend:** React (TypeScript) · Vite · Tailwind CSS · Zustand + TanStack Query · react-i18next (EN/VI) · Font Awesome
-- **Extraction service:** Python worker · Redis queue · pluggable LLM providers (Ollama / Claude / OpenAI)
-- **Design docs:** [`docs/sdlc/`](docs/sdlc/) · [`docs/feature-pdf-question-import.md`](docs/feature-pdf-question-import.md) · [`docs/adr-knowledge-graph.md`](docs/adr-knowledge-graph.md)
-- **Setup guides:** [`docs/social-login-setup.md`](docs/social-login-setup.md) · extraction standard [`docs/enterprise_document_extraction_standard.md`](docs/enterprise_document_extraction_standard.md) ([conformance](extraction-service/docs/EDIES_CONFORMANCE.md))
+- **Backend:**
+   - NestJS (TypeScript)
+   - PostgreSQL via TypeORM
+   - JWT auth (HS256, refresh in HttpOnly cookie)
+- **Frontend:**
+   - React (TypeScript)
+   - Vite
+   - Tailwind CSS
+   - Zustand + TanStack Query
+   - react-i18next (EN/VI)
+   - Font Awesome
+- **Extraction service:**
+   - Python worker
+   - Redis queue · pluggable LLM providers (Ollama / Claude / OpenAI)
+- **Design docs:**
+   - [`docs/sdlc/`](docs/sdlc/)
+   - [`docs/feature-pdf-question-import.md`](docs/feature-pdf-question-import.md)
+   - [`docs/adr-knowledge-graph.md`](docs/adr-knowledge-graph.md)
+- **Setup guides:**
+   - [`docs/social-login-setup.md`](docs/social-login-setup.md)
+   - extraction standard [`docs/enterprise_document_extraction_standard.md`](docs/enterprise_document_extraction_standard.md) ([conformance](extraction-service/docs/EDIES_CONFORMANCE.md))
 
 ---
 
 ## Features
+
+### Role-based experience
+The app routes each visitor to a focused home with a role-specific navigation bar
+(`roleHome` + `AppLayout`), and route guards keep roles in their own areas:
+
+| Role | Lands on | Sees | Can't access |
+|------|----------|------|--------------|
+| **Guest** (no account) | `/welcome` | Public landing + one full **sample test** preview (`/welcome/sample`), locked teasers of other published tests | Everything else (redirected to `/welcome`) |
+| **Learner** | `/` dashboard (resume in-progress + recent results) | Tests, Results | Authoring, Import, Admin |
+| **Teacher** | `/authoring` | Authoring, Import, Knowledge Graph, Tests | Admin |
+| **Admin** | `/admin/users` | Users, Configuration | Authoring/Import (focus is management, not content) |
+
+- **Guest browse** — unauthenticated, unguarded public endpoints `GET /public/tests` (published-test teasers) and `GET /public/tests/sample` (one full sample, falling back to the latest published test)
+- Teachers flag a test as the public sample via `POST /tests/:id/sample` (`is_sample`)
+- Login / register redirect by role; unauthenticated users land on `/welcome`, not the login form
 
 ### Accounts & auth
 - Open self-registration, email/password login, JWT access + refresh (HttpOnly cookie)
 - **Social login** — Sign in with **Google** & **Facebook** (token verified server-side, account-linked by email)
 - **Forgot / reset password** via email (30-min single-use link)
 - **My Profile** — edit display name & UI language, self-service password change
-- Role-based access control: **Admin**, **Teacher**, **Learner**
+- Role-based access control: **Admin**, **Teacher**, **Learner** (see [Role-based experience](#role-based-experience))
 
-### Authoring (Teacher / Admin)
+### Authoring (Teacher)
 - Create a test → **7 TOEIC parts auto-scaffolded** (Listening 1–4, Reading 5–7)
 - Add / **edit** / **delete** questions (4 choices, exactly-one-correct validation)
 - Per-question **Vietnamese explanation**
@@ -42,14 +77,17 @@ to extract questions for human review before import.
 - **Scaled scoring** — raw → scaled (Listening/Reading/Total) via a swappable conversion strategy
 - **Review** — per-question correctness, correct answer, explanation, "wrong only" filter
 
-### Question import (Teacher / Admin)
+### Question import (Teacher)
 - Upload a **reading PDF/DOCX** on the **Import** page → a Python worker extracts questions asynchronously
 - **Pluggable LLM** providers — local **Ollama (llama3)**, **Claude API**, or **OpenAI** (select per env)
 - **Mandatory review** — edit extracted questions, set the correct answer, then bulk-import into a draft test's reading parts (atomic)
 - Live status (Queued → Extracting → Ready), warnings (e.g. missing answer key), and **traceability** (source page, file hash, model, prompt/schema version) per the [EDIES standard](docs/enterprise_document_extraction_standard.md)
+- **Editable title** per uploaded file (rename inline; `PATCH /exam-files/:id`)
 
 ### Admin
 - Paginated user management — search, filter, change role, deactivate/reactivate, and **hard-delete** users (full purge; self- and last-admin-protected)
+- **Reset any user's password** to a one-time temp password (revokes their sessions); the temp password is shown once in a copy modal
+- **Configuration page** — read-only view of the running backend `.env` (secrets masked), admin-only
 
 ### Cross-cutting
 - Bilingual **English / Vietnamese** UI throughout
@@ -173,12 +211,15 @@ npm run backend:dev
 npm run frontend:dev
 ```
 
-Open **http://localhost:5173**:
-- Log in as **admin@toeic.local / Admin12345** → **Authoring** → create & publish a test
-- Register a **learner** → **Tests** → take it → review your score
+Open **http://localhost:5173** — without an account you land on **`/welcome`**, where
+you can preview one **sample test**. Then:
+- Log in as **admin@toeic.local / Admin12345** → lands on **Users**; promote an account to **teacher**
+- A **teacher** lands on **Authoring** → create & publish a test (mark one as the public sample)
+- Register a **learner** → lands on the dashboard → **Tests** → take it → review your score
 
 > Registration always creates **learner** accounts. Teachers/admins are created by
-> seeding (`npm run seed:admin`) or promoted via the admin **Users** page.
+> seeding (`npm run seed:admin`) or promoted via the admin **Users** page. Each role
+> is redirected to its own home after login and is blocked from other roles' areas.
 
 ### Optional — enable live question import
 
@@ -222,6 +263,7 @@ All backend config is via `backend/.env` (template: `backend/.env.example`).
 | Server | `PORT`, `NODE_ENV`, `CORS_ORIGIN` | |
 | Database | `DB_HOST`, `DB_PORT`, `DB_USER`, `DB_PASSWORD`, `DB_NAME` | matches `docker-compose.yml` |
 | JWT | `JWT_ACCESS_SECRET`, `JWT_ACCESS_TTL`, `JWT_REFRESH_SECRET`, `JWT_REFRESH_TTL_DAYS` | change secrets in prod |
+| Cookies | `COOKIE_SECURE` | refresh-cookie `Secure` flag (default `false`); set `true` only behind HTTPS — leaving it `false` keeps sessions alive on plain-HTTP deployments |
 | Files | `UPLOADS_DIR` | local disk; S3-swappable adapter |
 | Admin seed | `ADMIN_EMAIL`, `ADMIN_PASSWORD`, `ADMIN_DISPLAY_NAME` | |
 | Google login | `GOOGLE_CLIENT_ID` (+ `VITE_GOOGLE_CLIENT_ID` in `frontend/.env`) | see social-login doc |
@@ -262,9 +304,10 @@ toeic_app/
 │   └── .env.example
 ├── frontend/                React SPA
 │   └── src/
-│       ├── routes/         pages (auth, tests, exam, review, authoring, admin, profile, exam-files)
-│       ├── components/     layout, AudioPlayer, StimulusDisplay, Icon, SocialAuth…
-│       ├── api/            typed API clients (axios)
+│       ├── routes/         pages (public/welcome+sample, auth, tests, exam, review, authoring, admin, profile, exam-files)
+│       ├── components/     AppLayout/PublicLayout, ProtectedRoute (role guard), AudioPlayer, StimulusDisplay, Icon, SocialAuth…
+│       ├── lib/            roleHome (per-role landing route)
+│       ├── api/            typed API clients (axios; incl. public.api)
 │       ├── store/          Zustand auth store
 │       └── i18n/           EN/VI translations
 ├── extraction-service/      Python question-extraction worker
