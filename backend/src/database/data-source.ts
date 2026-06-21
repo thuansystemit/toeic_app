@@ -18,6 +18,7 @@ import { Score } from '../scoring/entities/score.entity';
 import { ScoreConversion } from '../scoring/entities/score-conversion.entity';
 import { ExamFile } from '../exam-files/entities/exam-file.entity';
 import { ExtractionJob } from '../exam-files/entities/extraction-job.entity';
+import { LearnerSkillMastery } from '../mastery/entities/learner-skill-mastery.entity';
 import { InitAuth1700000000000 } from './migrations/1700000000000-InitAuth';
 import { TestAttemptScoring1700000001000 } from './migrations/1700000001000-TestAttemptScoring';
 import { QuestionStimuli1700000002000 } from './migrations/1700000002000-QuestionStimuli';
@@ -28,6 +29,7 @@ import { Skills1700000006000 } from './migrations/1700000006000-Skills';
 import { ExamFilePart1700000007000 } from './migrations/1700000007000-ExamFilePart';
 import { ExamFileTitle1700000008000 } from './migrations/1700000008000-ExamFileTitle';
 import { TestSample1700000009000 } from './migrations/1700000009000-TestSample';
+import { LearnerSkillMastery1700000010000 } from './migrations/1700000010000-LearnerSkillMastery';
 
 // Load backend/.env when running the TypeORM CLI outside of Nest's runtime.
 loadEnv();
@@ -57,6 +59,7 @@ export const AppDataSource = new DataSource({
     ScoreConversion,
     ExamFile,
     ExtractionJob,
+    LearnerSkillMastery,
   ],
   migrations: [
     InitAuth1700000000000,
@@ -69,6 +72,7 @@ export const AppDataSource = new DataSource({
     ExamFilePart1700000007000,
     ExamFileTitle1700000008000,
     TestSample1700000009000,
+    LearnerSkillMastery1700000010000,
   ],
   synchronize: false,
   logging: false,

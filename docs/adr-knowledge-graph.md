@@ -173,17 +173,31 @@ The graph is the substrate; the policy sits on top:
 
 ## 9. Phased roadmap
 
-| Phase | Deliverable | Stack | Value |
-|---|---|---|---|
-| 0 | Skill taxonomy (content) | docs | gates everything |
-| 1 | LLM auto-tagging at import; `skills`/`question_skills`/`mastery` tables; weak-skill practice + coverage | **Postgres only** | most early value, no new infra |
-| 2 | Neo4j projection + sync; recommendation/similarity/prereq Cypher; qdrant `SIMILAR_TO` | + Neo4j, qdrant | multi-hop reads, similarity |
-| 3 | Mastery model + recommendation policy | app logic on graph | true adaptivity |
+| Phase | Deliverable | Stack | Value | Status |
+|---|---|---|---|---|
+| 0 | Skill taxonomy (content) | docs | gates everything | ✅ done (Reading; seeded in migration `1700000006000-Skills`) |
+| 1 | LLM auto-tagging at import; `skills`/`question_skills`/`mastery` tables; weak-skill practice + coverage | **Postgres only** | most early value, no new infra | ✅ done — taxonomy + human/LLM tagging + coverage view + a Postgres force-graph view + **per-learner mastery** (`learner_skill_mastery`, recomputed on attempt submit) + **weak-skill practice** (`/practice` page, `GET /practice/skills` + `/recommendations`, deep-linking into part practice). *Listening taxonomy and a `question_meta`/difficulty sidecar remain deferred.* |
+| 2 | Neo4j projection + sync; recommendation/similarity/prereq Cypher; qdrant `SIMILAR_TO` | + Neo4j, qdrant | multi-hop reads, similarity | ⬜ not started |
+| 3 | Mastery model + recommendation policy | app logic on graph | true adaptivity | ⬜ not started (Phase 1 uses a simple recency-weighted rolling accuracy as the starter estimator) |
+
+> **Note on the graph view.** A read-only **Postgres-projected** knowledge-graph
+> view (`GET /tests/graph`, `react-force-graph-2d`) shipped in Phase 1 rather than
+> waiting for Neo4j — it renders the `(:Question)-[:TESTS]->(:Skill)` edges that
+> already live in Postgres. Neo4j remains the Phase 2 substrate for *multi-hop*
+> traversal (prerequisite-respecting recommendations, similarity walks), which the
+> Phase 1 single-skill weak-practice query does not need.
 
 **Recommendation:** do **Phase 0 + 1 first** in the current stack. Introduce
 Neo4j at Phase 2 only when traversal depth (prerequisite chains, similarity
 walks) makes SQL painful. This avoids paying the second-datastore tax (sync,
 ops, dual model) before the taxonomy/tagging has proven its signal.
+
+**Status (current):** Phase 0 + 1 are **implemented** in the existing Postgres
+stack (see the roadmap table). The remaining open items before considering Neo4j
+are content/quality, not infra: a Listening taxonomy, a `question_meta`
+difficulty/topic sidecar to sharpen ordering, and validating that the mastery
+signal is good enough to drive recommendations. Neo4j is still deferred to
+Phase 2.
 
 ## 10. Trade-offs & risks
 - **Premature Neo4j** = a second datastore + sync complexity before value is

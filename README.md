@@ -67,7 +67,7 @@ The app routes each visitor to a focused home with a role-specific navigation ba
 - Per-question **Vietnamese explanation**
 - **Skill tagging** — tag questions against the TOEIC skill taxonomy (+ coverage view)
 - Upload **audio + image + passage** stimuli (a single question can carry several — e.g. Part 1 photo + audio)
-- **Per-part publishing** — publish/unpublish each part independently (guard: ≥1 question, every question answered); a part is practiceable only when its test **and** the part are published
+- **One-click publish** — publishing a test auto-publishes every part that has ≥1 question (placeholder content allowed, so a freshly scaffolded test publishes immediately and learners can open it to verify); parts can still be unpublished individually. A part is practiceable only when its test **and** the part are published. *Missing correct answers are surfaced as non-blocking warnings in the editor/Preview, not a publish blocker.*
 - **Delete a test** from the author library
 
 ### Taking tests (Learner)
@@ -76,6 +76,7 @@ The app routes each visitor to a focused home with a role-specific navigation ba
 - **Sidebar question navigator** with answered/unanswered tracking
 - **Scaled scoring** — raw → scaled (Listening/Reading/Total) via a swappable conversion strategy
 - **Review** — per-question correctness, correct answer, explanation, "wrong only" filter
+- **Weak-skill practice** — a **Practice** page that estimates per-skill mastery from your graded answers (recency-weighted) and recommends the weakest skills, deep-linking you into the part practice that drills them (ADR knowledge-graph Phase 1)
 
 ### Question import (Teacher)
 - Upload a **reading PDF/DOCX** on the **Import** page → a Python worker extracts questions asynchronously
@@ -167,16 +168,18 @@ From an uploaded PDF to a published, practiceable test — and, ahead, a skill g
                          ▼
 ┌── D. AUTHORING & PUBLISH ─────────────────────────────────┐
  • tag questions with skills (manual now)
- • publish per part (guard: every Q has 1 correct answer)
+ • one-click publish: auto-publishes parts that have ≥1 question
+   (placeholder content allowed; answers fillable later)
  • publish test → appears in learner library
 └───────────────────────────────────────────────────────────┘
                          │
             ┌────────────┴─────────────┐
             ▼                           ▼
-┌── E. LEARNER ──────────┐   ┌── F. KNOWLEDGE GRAPH (future) ─┐
- practice / full attempt      • LLM auto-tag skills (not built)
+┌── E. LEARNER ──────────┐   ┌── F. KNOWLEDGE GRAPH ──────────┐
+ practice / full attempt      • LLM auto-tag skills (built)
  → answers → scoring          • graph view (built, Postgres)
- → results                    • adaptive recommendations (later)
+ → mastery recompute          • weak-skill practice (built)
+ → results / recommendations  • Neo4j multi-hop (Phase 2, later)
 └────────────────────────┘   └────────────────────────────────┘
 ```
 
@@ -295,6 +298,7 @@ toeic_app/
 │   │   ├── admin/          user management (paginated, RBAC)
 │   │   ├── tests/          test/part/question/choice/stimulus authoring
 │   │   ├── attempts/       attempt lifecycle, answers, audio play-once, expiry
+│   │   ├── mastery/        per-learner skill mastery + weak-skill practice recs
 │   │   ├── scoring/        raw → scaled conversion (swappable strategy)
 │   │   ├── files/          upload + serving (local-disk storage adapter)
 │   │   ├── email/          provider-agnostic SMTP sender
@@ -304,7 +308,7 @@ toeic_app/
 │   └── .env.example
 ├── frontend/                React SPA
 │   └── src/
-│       ├── routes/         pages (public/welcome+sample, auth, tests, exam, review, authoring, admin, profile, exam-files)
+│       ├── routes/         pages (public/welcome+sample, auth, tests, practice, exam, review, authoring, admin, profile, exam-files)
 │       ├── components/     AppLayout/PublicLayout, ProtectedRoute (role guard), AudioPlayer, StimulusDisplay, Icon, SocialAuth…
 │       ├── lib/            roleHome (per-role landing route)
 │       ├── api/            typed API clients (axios; incl. public.api)

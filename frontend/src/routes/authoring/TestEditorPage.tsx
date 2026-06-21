@@ -30,6 +30,7 @@ import type {
 } from '../../types/test';
 import { fileUrl, uploadFile } from '../../api/files.api';
 import { Icon } from '../../components/Icon';
+import { TestPreview } from './TestPreview';
 
 type Labels = 'A' | 'B' | 'C' | 'D';
 const LABELS: Labels[] = ['A', 'B', 'C', 'D'];
@@ -52,6 +53,7 @@ export function TestEditorPage() {
       return next;
     });
   const [msg, setMsg] = useState<{ text: string; ok: boolean } | null>(null);
+  const [previewing, setPreviewing] = useState(false);
   const [skills, setSkills] = useState<Skill[]>([]);
   const [questionSkills, setQuestionSkillsState] = useState<QuestionSkillsMap>({});
 
@@ -132,6 +134,9 @@ export function TestEditorPage() {
           <span className={test.status === 'published' ? 'badge-green' : 'badge-slate'}>
             {test.status === 'published' ? t('statusPublished') : t('statusDraft')}
           </span>
+          <button onClick={() => setPreviewing(true)} className="btn-soft btn-sm">
+            <Icon name="reviewList" /> {t('preview')}
+          </button>
           {test.status === 'draft' ? (
             <button onClick={onPublish} className="btn-primary btn-sm">
               {t('publish')}
@@ -248,9 +253,15 @@ export function TestEditorPage() {
                                 <div className="truncate text-sm font-semibold text-slate-700">
                                   {q.questionText || <span className="text-slate-400">—</span>}
                                 </div>
-                                <div className="text-xs text-slate-400">
-                                  {t('correctAnswerLabel')}: {correct?.label ?? '?'}
-                                </div>
+                                {correct ? (
+                                  <div className="text-xs text-slate-400">
+                                    {t('correctAnswerLabel')}: {correct.label}
+                                  </div>
+                                ) : (
+                                  <div className="flex items-center gap-1 text-xs font-bold text-rose-600">
+                                    <Icon name="wrong" /> {t('previewMissingAnswer')}
+                                  </div>
+                                )}
                               </div>
                               {partDraft && (
                                 <div className="flex gap-1">
@@ -333,6 +344,8 @@ export function TestEditorPage() {
             );
           })}
       </div>
+
+      {previewing && <TestPreview test={test} onClose={() => setPreviewing(false)} />}
     </AppLayout>
   );
 }

@@ -750,10 +750,11 @@ export class TestsService {
   }
 
   /**
-   * Publish a single part (REQ-015 per part): it must have ≥1 question and
-   * every question must have exactly one correct answer. The latter lets import
-   * accept answer-less questions while still guaranteeing a published part is
-   * fully scoreable — the teacher fills any missing answers before publishing.
+   * Publish a single part (REQ-015 per part): it only needs ≥1 question.
+   * Placeholder content is allowed — a freshly scaffolded test can be published
+   * and opened by learners to verify before answers/explanations are filled in.
+   * (Missing answers are surfaced as non-blocking warnings in the editor/preview;
+   * a question with no correct choice simply scores as incorrect until set.)
    */
   async publishPart(
     testId: string,
@@ -762,20 +763,9 @@ export class TestsService {
     role: UserRole,
   ): Promise<Part> {
     const part = await this.loadOwnedPart(testId, partId, userId, role);
-    const questions = await this.questions.find({
-      where: { partId },
-      relations: { choices: true },
-    });
-    if (questions.length === 0) {
+    const questionCount = await this.questions.count({ where: { partId } });
+    if (questionCount === 0) {
       throw new BadRequestException('Cannot publish a part with no questions');
-    }
-    const unanswered = questions.filter(
-      (q) => q.choices.filter((c) => c.isCorrect).length !== 1,
-    ).length;
-    if (unanswered > 0) {
-      throw new BadRequestException(
-        `Set exactly one correct answer for every question first (${unanswered} still missing)`,
-      );
     }
     part.status = 'published';
     await this.parts.save(part);
@@ -795,8 +785,11 @@ export class TestsService {
   }
 
   /**
-   * Publish guard (per-part model): a test goes live once at least one of its
-   * parts is published, so every library entry has something practiceable.
+   * Publish the test in one click: auto-publish every part that has ≥1 question
+   * (placeholder content is allowed) and mark the test published, so a freshly
+   * scaffolded test can be published immediately and learners can open it to
+   * verify. Parts can still be individually unpublished afterwards for granular
+   * control. Errors only if the test has no questions at all.
    */
   async publish(
     testId: string,
@@ -804,13 +797,22 @@ export class TestsService {
     role: UserRole,
   ): Promise<Test> {
     const test = await this.assertOwner(testId, userId, role);
-    const publishedParts = await this.parts.count({
-      where: { testId, status: 'published' },
-    });
-    if (publishedParts === 0) {
+    const summaries = await this.partSummaries(testId);
+    const nonEmptyPartIds = summaries
+      .filter((s) => s.count > 0)
+      .map((s) => s.partId);
+    if (nonEmptyPartIds.length === 0) {
       throw new BadRequestException(
-        'Cannot publish: publish at least one part first',
+        'Cannot publish: add at least one question first',
       );
+    }
+    const parts = await this.parts.find({ where: { testId } });
+    const toPublish = parts.filter(
+      (p) => nonEmptyPartIds.includes(p.id) && p.status !== 'published',
+    );
+    if (toPublish.length > 0) {
+      for (const p of toPublish) p.status = 'published';
+      await this.parts.save(toPublish);
     }
     test.status = 'published';
     await this.tests.save(test);

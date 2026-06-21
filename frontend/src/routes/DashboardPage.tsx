@@ -86,8 +86,9 @@ export function DashboardPage() {
       )}
 
       {/* quick actions */}
-      <div className="mt-7 grid gap-4 sm:grid-cols-2">
+      <div className="mt-7 grid gap-4 sm:grid-cols-3">
         <ActionCard to="/tests" icon="headphones" title={t('actTakeTitle')} body={t('actTakeBody')} />
+        <ActionCard to="/practice" icon="practice" title={t('actPracticeTitle')} body={t('actPracticeBody')} />
         <ActionCard to="/results" icon="results" title={t('actResultsTitle')} body={t('actResultsBody')} />
       </div>
 

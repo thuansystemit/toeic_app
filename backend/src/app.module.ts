@@ -20,6 +20,7 @@ import { Score } from './scoring/entities/score.entity';
 import { ScoreConversion } from './scoring/entities/score-conversion.entity';
 import { ExamFile } from './exam-files/entities/exam-file.entity';
 import { ExtractionJob } from './exam-files/entities/extraction-job.entity';
+import { LearnerSkillMastery } from './mastery/entities/learner-skill-mastery.entity';
 import { UsersModule } from './users/users.module';
 import { AuthModule } from './auth/auth.module';
 import { TestsModule } from './tests/tests.module';
@@ -28,6 +29,7 @@ import { FilesModule } from './files/files.module';
 import { AdminModule } from './admin/admin.module';
 import { ProfileModule } from './profile/profile.module';
 import { ExamFilesModule } from './exam-files/exam-files.module';
+import { MasteryModule } from './mastery/mastery.module';
 import { HealthController } from './health.controller';
 
 const ENTITIES = [
@@ -48,6 +50,7 @@ const ENTITIES = [
   ScoreConversion,
   ExamFile,
   ExtractionJob,
+  LearnerSkillMastery,
 ];
 
 @Module({
@@ -81,6 +84,7 @@ const ENTITIES = [
     AdminModule,
     ProfileModule,
     ExamFilesModule,
+    MasteryModule,
   ],
   controllers: [HealthController],
 })

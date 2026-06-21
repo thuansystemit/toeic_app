@@ -15,6 +15,7 @@ import { TestsService } from '../tests/tests.service';
 import { Test } from '../tests/entities/test.entity';
 import { Part } from '../tests/entities/part.entity';
 import { ScoringService, SectionRaw } from '../scoring/scoring.service';
+import { MasteryService } from '../mastery/mastery.service';
 
 export interface AttemptView {
   id: string;
@@ -72,6 +73,7 @@ export class AttemptsService {
     private readonly audioPlays: Repository<AttemptAudioPlay>,
     private readonly testsService: TestsService,
     private readonly scoringService: ScoringService,
+    private readonly masteryService: MasteryService,
   ) {}
 
   async start(userId: string, dto: StartAttemptDto): Promise<AttemptView> {
@@ -350,6 +352,21 @@ export class AttemptsService {
     attempt.status = status;
     attempt.submittedAt = new Date();
     await this.attempts.save(attempt);
+
+    // Update the learner's skill mastery from this attempt's graded answers
+    // (ADR knowledge-graph Phase 1). Best-effort: a mastery hiccup must not
+    // fail submission or hide the learner's score.
+    try {
+      const gradedQuestionIds = answers
+        .filter((a) => a.isCorrect !== null)
+        .map((a) => a.questionId);
+      await this.masteryService.recomputeForAttempt(
+        attempt.userId,
+        gradedQuestionIds,
+      );
+    } catch {
+      // swallow — mastery is a derived, rebuildable read-model
+    }
   }
 
   private stimulusView(

@@ -8,12 +8,14 @@ import { AttemptsController } from './attempts.controller';
 import { AttemptExpiryService } from './attempt-expiry.service';
 import { TestsModule } from '../tests/tests.module';
 import { ScoringModule } from '../scoring/scoring.module';
+import { MasteryModule } from '../mastery/mastery.module';
 
 @Module({
   imports: [
     TypeOrmModule.forFeature([Attempt, AttemptAnswer, AttemptAudioPlay]),
     TestsModule,
     ScoringModule,
+    MasteryModule,
   ],
   providers: [AttemptsService, AttemptExpiryService],
   controllers: [AttemptsController],

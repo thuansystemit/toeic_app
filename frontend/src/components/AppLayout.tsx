@@ -39,6 +39,7 @@ export function AppLayout({ children }: { children: ReactNode }) {
           ]
         : [
             { to: '/tests', label: t('navTests') },
+            { to: '/practice', label: t('navPractice') },
             { to: '/results', label: t('navResults') },
           ];
 
