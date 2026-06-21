@@ -3,21 +3,26 @@ from __future__ import annotations
 
 import requests
 
-from app.config import settings
+from app.config import get_settings, settings
 
-_HEADERS = {"x-internal-token": settings.internal_token}
+
+def _headers() -> dict:
+    """Build the auth header per call from a fresh settings read, so a live `.env`
+    edit to INTERNAL_API_TOKEN takes effect without a restart (and we never depend
+    on import ordering for the token to be present)."""
+    return {"x-internal-token": get_settings().internal_token}
 
 
 def download_file(storage_key: str) -> tuple[bytes, str]:
     url = f"{settings.backend_base_url}/internal/files/{storage_key}"
-    r = requests.get(url, headers=_HEADERS, timeout=120)
+    r = requests.get(url, headers=_headers(), timeout=120)
     r.raise_for_status()
     return r.content, r.headers.get("Content-Type", "application/octet-stream")
 
 
 def mark_started(job_id: str) -> None:
     url = f"{settings.backend_base_url}/internal/extraction/{job_id}/started"
-    requests.post(url, headers=_HEADERS, timeout=30)
+    requests.post(url, headers=_headers(), timeout=30)
 
 
 def post_result(job_id: str, status: str, *, questions=None, warnings=None,
@@ -35,6 +40,6 @@ def post_result(job_id: str, status: str, *, questions=None, warnings=None,
         payload["model"] = model
     if usage is not None:
         payload["usage"] = usage
-    r = requests.post(url, headers={**_HEADERS, "Content-Type": "application/json"},
+    r = requests.post(url, headers={**_headers(), "Content-Type": "application/json"},
                       json=payload, timeout=60)
     r.raise_for_status()

@@ -87,6 +87,8 @@ def run_extraction(
         try:
             raw_json = provider.extract_json(system, ch.content)
             parsed = json.loads(raw_json)
+            if not isinstance(parsed, dict):
+                raise ValueError(f"LLM returned non-object JSON ({type(parsed).__name__})")
         except Exception as e:
             chunk_errors += 1
             warnings.append(f"chunk {ch.index} failed: {e}")
@@ -130,8 +132,10 @@ def run_extraction(
         )
 
     low_conf = sum(1 for q in questions if q.confidence < settings.low_confidence_threshold)
-    no_key = sum(1 for q in questions if "answer_key_not_found" in q.issues
-                 or not any(c.isCorrect for c in q.choices))
+    # A missing answer key shows up as a question whose choices have no isCorrect=true
+    # marker. (The LLM never populates `issues`, so don't gate on it — choices are the
+    # single source of truth, and the schema guarantees exactly 4 of them.)
+    no_key = sum(1 for q in questions if not any(c.isCorrect for c in q.choices))
     needs_review = low_conf > 0 or no_key > 0  # everything is reviewed anyway
 
     duration_ms = int((time.monotonic() - started) * 1000)

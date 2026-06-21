@@ -1,6 +1,14 @@
 """Local Ollama provider (llama3) — JSON-constrained generation."""
 import json
+import time
+
 import requests
+
+# Retry transient transport failures (server still loading the model, a brief
+# connection drop, a 5xx) with exponential backoff so a blip doesn't discard the
+# chunk. We do NOT retry 4xx (bad request / model-not-found) — that won't recover.
+_MAX_ATTEMPTS = 3
+_RETRY_STATUS = {500, 502, 503, 504}
 
 
 class OllamaProvider:
@@ -22,34 +30,47 @@ class OllamaProvider:
                 "model_present": present, "models": models}
 
     def extract_json(self, system_prompt: str, document_text: str) -> str:
-        resp = requests.post(
-            f"{self.base_url}/api/chat",
-            json={
-                "model": self.model,
-                "format": "json",  # constrains output to valid JSON
-                "stream": False,
-                # A dense chunk yields many questions -> long JSON. The default
-                # 2048-token context truncates that mid-output (invalid JSON), so
-                # give room for the chunk + system prompt + a full answer. This is
-                # affordable here because the model is small and GPU-resident
-                # (a ~3B model in 4GB VRAM); only an oversized model on CPU made
-                # a big context slow.
-                "options": {
-                    "temperature": 0,
-                    "num_ctx": 8192,
-                    "num_predict": 4096,
-                },
-                "messages": [
-                    {"role": "system", "content": system_prompt},
-                    {"role": "user", "content": document_text},
-                ],
+        payload = {
+            "model": self.model,
+            "format": "json",  # constrains output to valid JSON
+            "stream": False,
+            # A dense chunk yields many questions -> long JSON. The default
+            # 2048-token context truncates that mid-output (invalid JSON), so
+            # give room for the chunk + system prompt + a full answer. This is
+            # affordable here because the model is small and GPU-resident
+            # (a ~3B model in 4GB VRAM); only an oversized model on CPU made
+            # a big context slow.
+            "options": {
+                "temperature": 0,
+                "num_ctx": 8192,
+                "num_predict": 4096,
             },
-            timeout=600,
-        )
-        resp.raise_for_status()
-        data = resp.json()
-        content = data.get("message", {}).get("content", "")
-        return json.dumps(_robust_parse(content))
+            "messages": [
+                {"role": "system", "content": system_prompt},
+                {"role": "user", "content": document_text},
+            ],
+        }
+
+        last_err: Exception | None = None
+        for attempt in range(_MAX_ATTEMPTS):
+            try:
+                resp = requests.post(
+                    f"{self.base_url}/api/chat", json=payload, timeout=600,
+                )
+                resp.raise_for_status()
+                data = resp.json()
+                content = data.get("message", {}).get("content", "")
+                return json.dumps(_robust_parse(content))
+            except (requests.ConnectionError, requests.Timeout) as e:
+                last_err = e
+            except requests.HTTPError as e:
+                if resp.status_code not in _RETRY_STATUS:
+                    raise  # 4xx won't recover — fail fast
+                last_err = e
+            if attempt < _MAX_ATTEMPTS - 1:
+                time.sleep(2 ** attempt)  # 1s, 2s backoff
+
+        raise RuntimeError(f"Ollama request failed after {_MAX_ATTEMPTS} attempts: {last_err}")
 
 
 def _robust_parse(content: str) -> dict:

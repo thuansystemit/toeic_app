@@ -14,7 +14,9 @@ class ClaudeProvider:
     def __init__(self, api_key: str, model: str):
         from anthropic import Anthropic
 
-        self._client = Anthropic(api_key=api_key)
+        # max_retries gives the SDK exponential backoff on 429/5xx/overloaded/
+        # timeout, so a transient blip doesn't discard the chunk.
+        self._client = Anthropic(api_key=api_key, max_retries=3)
         self.model = model
 
     def extract_json(self, system_prompt: str, document_text: str) -> str:
@@ -32,7 +34,12 @@ class ClaudeProvider:
 
 def _extract_json_object(text: str) -> dict:
     """Parse the JSON object from the model's reply. Tolerates code fences and any
-    surrounding prose by isolating the outermost ``{ ... }`` before parsing."""
+    surrounding prose by isolating the outermost ``{ ... }`` before parsing.
+
+    Raises ``json.JSONDecodeError`` when nothing parseable is found. We deliberately
+    do NOT swallow this into ``{"questions": []}`` — an unparseable reply means the
+    chunk's questions are unknown, not absent, and the pipeline must record it as a
+    chunk error (and surface it in warnings) rather than silently drop them."""
     text = (text or "").strip()
     try:
         return json.loads(text)
@@ -42,8 +49,6 @@ def _extract_json_object(text: str) -> dict:
     start = text.find("{")
     end = text.rfind("}")
     if start >= 0 and end > start:
-        try:
-            return json.loads(text[start : end + 1])
-        except json.JSONDecodeError:
-            pass
-    return {"questions": []}
+        return json.loads(text[start : end + 1])
+
+    raise json.JSONDecodeError("no JSON object found in Claude response", text, 0)
