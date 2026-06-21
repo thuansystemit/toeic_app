@@ -8,7 +8,8 @@ class Part5Extractor(PartExtractor):
     part = 5
     guidance = (
         "Part 5 = incomplete sentences. Each question is ONE sentence with a "
-        "single blank and 4 options; there is NO passage (set passageText null)."
+        "blank (____) and 4 answer choices (A/B/C/D). "
+        "Set passageText to null. Set groupId to null."
     )
 
     def prepare(self, raw: dict) -> dict:

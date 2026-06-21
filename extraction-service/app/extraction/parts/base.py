@@ -79,7 +79,14 @@ class PartExtractor:
     # -- dedup ------------------------------------------------------------------
     def dedup_key(self, eq: ExtractedQuestion) -> Optional[tuple]:
         """Key used to drop duplicates surfaced by overlapping chunks. Return
-        ``None`` to never treat the question as a duplicate (e.g. empty stem)."""
+        ``None`` to never treat the question as a duplicate (e.g. empty stem).
+
+        Prefers question number as the dedup key (most reliable for TOEIC),
+        falls back to normalized stem text when the number is absent."""
+        # If the question has a number, dedup by (part, number) — this is
+        # robust against slight OCR variations in the stem text.
+        if eq.number is not None:
+            return (eq.part, eq.number)
         stem = " ".join((eq.questionText or "").lower().split())
         return (eq.part, stem) if stem else None
 

@@ -15,14 +15,17 @@ from app.observability import audit
 # scanned image and sent to OCR.
 _PAGE_TEXT_MIN_CHARS = 20
 # Render DPI for OCR — higher = better character accuracy (fewer "as"->"a8"
-# style errors) at the cost of speed.
+# style errors) at the cost of speed. 300 DPI is the sweet spot for TOEIC docs.
 _OCR_DPI = 300
 # Tesseract: LSTM engine (--oem 1), assume a uniform block of text (--psm 6).
-_OCR_CONFIG = "--oem 1 --psm 6"
+# preserve_interword_spaces=1 keeps choice labels (A) (B) (C) (D) from merging
+# with adjacent text. tessedit_char_blacklist removes characters that never
+# appear in TOEIC content but get falsely recognized from underline blanks.
+_OCR_CONFIG = "--oem 1 --psm 6 -c preserve_interword_spaces=1"
 # A TOEIC sentence blank (a long underline) gets OCR'd as runs of dots / under-
-# scores / backslashes / pluses / zeros, e.g. "\.....+0". Collapse such runs
-# into a clean "____" so the question stem is readable.
-_BLANK_RE = re.compile(r"\\?[._]{2,}[\\._+=0\-]*")
+# scores / backslashes / pluses / zeros / dashes, e.g. "\.....+0", "---",
+# "______", ".. ..", etc. Collapse such runs into a clean "____".
+_BLANK_RE = re.compile(r"\\?[._\-]{2,}[\\._+=0\-]*|_{2,}")
 
 
 def _normalize_ocr(text: str) -> str:

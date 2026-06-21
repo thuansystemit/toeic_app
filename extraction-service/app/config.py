@@ -58,10 +58,12 @@ class Settings:
     max_chars: int = field(default_factory=lambda: int(os.environ.get("MAX_TEXT_CHARS", "120000")))
     min_chars: int = field(default_factory=lambda: int(os.environ.get("MIN_TEXT_CHARS", "40")))
 
-    # Chunking (EDIES §9). Generous overlap so a Part 6/7 passage and the
-    # questions that reference it (often a page apart) co-occur in a chunk.
-    chunk_tokens: int = field(default_factory=lambda: int(os.environ.get("CHUNK_TOKENS", "1200")))
-    chunk_overlap: int = field(default_factory=lambda: int(os.environ.get("CHUNK_OVERLAP", "300")))
+    # Chunking (EDIES §9). Defaults tuned for small local models (qwen2.5:3b):
+    # smaller chunks (600 tokens ~ 5-8 questions) so the model sees fewer items
+    # per call and extracts each one more faithfully. The question-boundary-aware
+    # chunker in chunker.py will further ensure no question is split.
+    chunk_tokens: int = field(default_factory=lambda: int(os.environ.get("CHUNK_TOKENS", "600")))
+    chunk_overlap: int = field(default_factory=lambda: int(os.environ.get("CHUNK_OVERLAP", "100")))
 
     # Quality gate (EDIES §12, §22): below this -> flag for human review.
     low_confidence_threshold: float = field(default_factory=lambda: float(os.environ.get("LOW_CONFIDENCE", "0.6")))

@@ -1,53 +1,29 @@
-You are an expert TOEIC content extractor. You are given the raw text of a
-TOEIC Reading document (Parts 5, 6, and 7 only). Extract EVERY multiple-choice
-question that ACTUALLY APPEARS in the text. Do NOT invent questions.
+You extract TOEIC Reading questions from text into JSON.
 
-Completeness is critical:
-- TOEIC Reading questions are numbered (e.g. 101., 102., 103. …). Extract EXACTLY
-  one question object per numbered item, in order, with NONE missing and none
-  merged — do not stop early and do not summarize.
-- The text may be a fragment of a larger document: a passage may be cut off, or
-  questions may appear without their passage. Still extract every question you
-  can see. If a question's passage is not present, set passageText to null.
-- A single page can contain many questions; return them all, not just the first.
-- The blank in a Part 5/6 sentence may appear as underscores or as garbled OCR
-  (e.g. "____", "......", "\\.....+0"). Always represent the blank as "____"
-  (four underscores) in questionText; never copy the garbled characters.
-- Fix obvious OCR typos in the text you output (e.g. "a8" -> "as").
+TASK: Read the text below. Find EVERY numbered question. Output JSON.
 
-Rules:
-- Output strictly valid JSON of the form: {"questions": [ ... ]}.
-- Each question object has:
-  - "part": 5, 6, or 7 (Part 5 = single-sentence grammar/vocab; Part 6 = text
-    completion within a passage; Part 7 = reading comprehension on a passage).
-  - "number": the question's number from the source as an integer, e.g. 101.
-  - "questionText": the question stem ONLY (for Part 5, the sentence with the
-    blank). Do NOT include the leading number in questionText — put it in
-    "number". e.g. for "101. The report is due ____ Friday." output
-    number=101 and questionText="The report is due ____ Friday."
-  - "choices": exactly 4 objects, each {"label": "A"|"B"|"C"|"D", "text": "...",
-    "isCorrect": true|false}. Exactly ONE choice must have isCorrect=true.
-  - "passageText": for Parts 6 and 7, the shared reading passage text. Questions
-    that share the same passage should repeat the same passageText and share a
-    "groupId" (e.g. "p7-1").
-  - "explanationVi": a short Vietnamese explanation of why the answer is correct,
-    if (and only if) the document provides one; otherwise null.
-  - "skills": an array of 1-3 skill CODES (from the list below) that the question
-    tests. Use ONLY codes from this list; pick the most specific that apply.
-    Grammar: G-TENSE (verb tense), G-SVA (subject-verb agreement), G-PREP
-    (prepositions), G-CONJ (conjunctions/transitions), G-PRON (pronouns), G-RELCL
-    (relative clauses), G-COMP (comparatives), G-WFORM (word form/part of speech),
-    G-VERBAL (gerund/infinitive), G-COND (conditionals), G-VOICE (active/passive),
-    G-DET (articles/determiners), G-MODAL (modals).
-    Lexical: L-VOCAB (vocabulary), L-COLLOC (collocations), L-WCHOICE (word choice).
-    Discourse (Part 6): D-INSERT (sentence insertion), D-COHESION (transitions).
-    Reading (Part 7): R-GIST (main idea), R-DETAIL (specific detail), R-INFER
-    (inference), R-VIC (vocabulary in context), R-PURPOSE (purpose/tone), R-NOTTRUE
-    (NOT/true), R-XREF (cross-reference), R-INTENT (implied meaning).
-- Determining the correct answer: look for an answer key (often a separate table
-  like "1. A  2. C ..."). If no correct answer can be determined for a question,
-  set all choices isCorrect=false and add "answer_key_not_found" — do not guess.
-- Skip Listening parts (1-4) entirely; you cannot extract audio.
-- Extract ONLY what is present. Never fabricate questions, choices, or answers.
+RULES:
+1. Output ONLY valid JSON: {"questions": [...]}
+2. Extract ALL numbered questions you see. Do NOT skip any. Do NOT stop early.
+3. Each question is a JSON object with these fields:
+   - "part": integer 5, 6, or 7
+   - "number": the question number as integer (e.g. 101)
+   - "questionText": the question sentence (without the leading number)
+   - "choices": exactly 4 objects [{"label":"A","text":"...","isCorrect":true/false}, ...]
+   - "passageText": the reading passage text, or null if none
+   - "groupId": shared ID for questions about the same passage, or null
+   - "explanationVi": Vietnamese explanation if present in text, else null
+   - "skills": [] (empty array)
+4. Blanks in sentences: write as "____" (four underscores).
+5. Exactly ONE choice per question must have "isCorrect": true.
+6. If an answer key exists in the text (e.g. "101. B"), use it. If not found, set all isCorrect to false.
+7. Do NOT invent questions. Extract ONLY what appears in the text.
 
-Return only the JSON object, nothing else.
+EXAMPLE:
+Text: "101. The manager ____ the report yesterday. (A) review (B) reviewed (C) reviewing (D) reviews"
+Output:
+{"questions":[{"part":5,"number":101,"questionText":"The manager ____ the report yesterday.","choices":[{"label":"A","text":"review","isCorrect":false},{"label":"B","text":"reviewed","isCorrect":true},{"label":"C","text":"reviewing","isCorrect":false},{"label":"D","text":"reviews","isCorrect":false}],"passageText":null,"groupId":null,"explanationVi":null,"skills":[]}]}
+
+IMPORTANT: Count the questions in the text first. Your output must have the SAME number of question objects. If you see questions 101-110, output exactly 10 objects.
+
+Return ONLY the JSON object.

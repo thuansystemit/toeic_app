@@ -47,13 +47,23 @@ class DocumentSource(BaseModel):
 
 
 class QualityMetrics(BaseModel):
-    """EDIES §12 — measurable extraction quality."""
+    """EDIES §12 — measurable extraction quality.
+
+    Includes completeness metrics that compare the number of questions extracted
+    against the number of question numbers detected in the source text. This is
+    the primary accuracy/completeness signal for evaluating extraction quality.
+    """
     questionCount: int = 0
     skippedCount: int = 0
     lowConfidenceCount: int = 0
     missingAnswerKeyCount: int = 0
     needsReview: bool = False
     durationMs: int = 0
+    # Completeness metrics: how many questions were expected vs. actually extracted.
+    expectedQuestionCount: Optional[int] = None
+    missingQuestionNumbers: Optional[List[int]] = None
+    completenessPercent: Optional[float] = None  # 100.0 = every expected Q extracted
+    choiceCompletenessPercent: Optional[float] = None  # 100.0 = every Q has 4 distinct ABCD
 
 
 class ExtractionEnvelope(BaseModel):
