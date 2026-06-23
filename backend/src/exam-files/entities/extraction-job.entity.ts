@@ -16,6 +16,8 @@ export interface StagedChoice {
 }
 export interface StagedQuestion {
   part: number;
+  /** Source question number (e.g. 101); round-tripped, not persisted separately. */
+  number?: number | null;
   groupId?: string | null;
   passageText?: string | null;
   questionText: string;
@@ -24,6 +26,7 @@ export interface StagedQuestion {
   skills?: string[];
   confidence?: number;
   issues?: string[];
+  sourcePage?: number | null;
 }
 
 @Entity({ name: 'extraction_jobs' })

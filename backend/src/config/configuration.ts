@@ -22,6 +22,13 @@ export interface AppConfig {
   redisUrl: string;
   internalApiToken: string;
   extractionQueue: string;
+  // LLM for synchronous vocab generation (English Learning KG, P1). Mirrors the
+  // worker's provider env so both stay in sync; P1 ships ollama only.
+  llm: {
+    provider: string; // ollama | claude | openai (P1: ollama)
+    ollamaBaseUrl: string;
+    ollamaModel: string;
+  };
   mail: {
     from: string;
     smtp: {
@@ -65,6 +72,11 @@ export default (): AppConfig => ({
   redisUrl: process.env.REDIS_URL ?? 'redis://localhost:6379/0',
   internalApiToken: process.env.INTERNAL_API_TOKEN ?? 'dev-internal-token-change-me',
   extractionQueue: process.env.EXTRACTION_QUEUE ?? 'extraction:jobs',
+  llm: {
+    provider: process.env.LLM_PROVIDER ?? 'ollama',
+    ollamaBaseUrl: process.env.OLLAMA_BASE_URL ?? 'http://localhost:11434',
+    ollamaModel: process.env.OLLAMA_MODEL ?? 'qwen2.5:3b',
+  },
   mail: {
     from: process.env.MAIL_FROM ?? 'TOEIC Platform <no-reply@toeic.local>',
     smtp: {

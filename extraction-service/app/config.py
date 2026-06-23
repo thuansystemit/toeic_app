@@ -68,6 +68,12 @@ class Settings:
     # Quality gate (EDIES §12, §22): below this -> flag for human review.
     low_confidence_threshold: float = field(default_factory=lambda: float(os.environ.get("LOW_CONFIDENCE", "0.6")))
 
+    # Skill tagging (knowledge-graph): a focused, decoupled LLM pass that maps each
+    # extracted question to TOEIC taxonomy codes. Off by default since it adds LLM
+    # calls; enable via .env once the tagging model is trusted.
+    skill_tagging_enabled: bool = field(default_factory=lambda: os.environ.get("SKILL_TAGGING_ENABLED", "false").lower() in ("1", "true", "yes"))
+    skill_tagging_batch: int = field(default_factory=lambda: int(os.environ.get("SKILL_TAGGING_BATCH", "10")))
+
 
 def get_settings() -> Settings:
     """Fresh settings after re-reading the mounted .env — call this for anything

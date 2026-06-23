@@ -23,6 +23,67 @@ _LEADING_NUMBER = re.compile(
 )
 
 
+_CHOICE_LABELS = ["A", "B", "C", "D"]
+
+
+def _normalize_choices(raw: dict) -> dict:
+    """Repair the choice-shape errors small models (qwen2.5:3b) commonly make,
+    BEFORE Pydantic validation, so a recoverable question isn't dropped.
+
+    The frequent failure mode is the model packing the answer WORD into ``label``
+    and omitting ``text`` (e.g. ``{"label": "During", "isCorrect": true}``). TOEIC
+    choices are positional (A,B,C,D in order), so we:
+      * move a non-letter ``label`` into ``text`` when ``text`` is missing,
+      * accept a bare string choice as its text,
+      * relabel every choice by position (A,B,C,D).
+    Choices already shaped correctly pass through COMPLETELY UNCHANGED — the
+    repair only ever touches choices that would otherwise fail validation, so it
+    can add a recovered question but can never alter or drop a valid one."""
+    choices = raw.get("choices")
+    if not isinstance(choices, list) or not choices:
+        return raw
+
+    # Fast path: if the choices are already well-formed (exactly 4 dicts, each
+    # with a distinct A-D label and non-empty text), leave them byte-for-byte
+    # as-is. This guarantees the repair is a strict no-op on valid questions.
+    def _clean(ch: object) -> bool:
+        return (
+            isinstance(ch, dict)
+            and isinstance(ch.get("label"), str)
+            and ch["label"].strip().upper() in _CHOICE_LABELS
+            and isinstance(ch.get("text"), str)
+            and ch["text"].strip() != ""
+        )
+
+    if len(choices) == 4 and all(_clean(c) for c in choices):
+        labels = {c["label"].strip().upper() for c in choices}  # type: ignore[index]
+        if len(labels) == 4:
+            return raw  # nothing to repair — untouched
+
+    repaired: list = []
+    for i, ch in enumerate(choices):
+        label = _CHOICE_LABELS[i] if i < len(_CHOICE_LABELS) else None
+        if isinstance(ch, str):
+            repaired.append({"label": label, "text": ch, "isCorrect": False})
+            continue
+        if not isinstance(ch, dict):
+            repaired.append(ch)  # let validation reject anything truly unexpected
+            continue
+        ch = dict(ch)
+        text = ch.get("text")
+        orig_label = ch.get("label")
+        # Recover text from a label that holds a word rather than an A-D letter.
+        if (text is None or text == "") and isinstance(orig_label, str) \
+                and orig_label.strip().upper() not in _CHOICE_LABELS:
+            ch["text"] = orig_label
+        if label is not None:
+            ch["label"] = label  # canonical positional label
+        repaired.append(ch)
+
+    raw["choices"] = repaired
+    return raw
+
+
 def _strip_leading_number(text: str) -> str:
     return _LEADING_NUMBER.sub("", text or "").strip()
 
@@ -54,9 +115,12 @@ class PartExtractor:
         """Coerce a raw model question dict BEFORE schema validation.
 
         For a known part we force ``part`` rather than trusting the model's
-        classification — this eliminates cross-part mislabeling."""
+        classification — this eliminates cross-part mislabeling. We also repair
+        common small-model choice-shape errors so a recoverable question isn't
+        dropped at validation."""
         if self.part is not None:
             raw["part"] = self.part
+        raw = _normalize_choices(raw)
         return raw
 
     def finalize(self, eq: ExtractedQuestion, *, page_start: Optional[int]) -> ExtractedQuestion:

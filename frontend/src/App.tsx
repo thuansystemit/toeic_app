@@ -13,6 +13,7 @@ import { TestLibraryPage } from './routes/tests/TestLibraryPage';
 import { ExamRunnerPage } from './routes/exam/ExamRunnerPage';
 import { MyResultsPage } from './routes/review/MyResultsPage';
 import { PracticePage } from './routes/practice/PracticePage';
+import { VocabPage } from './routes/vocab/VocabPage';
 import { AttemptReviewPage } from './routes/review/AttemptReviewPage';
 import { AuthoringListPage } from './routes/authoring/AuthoringListPage';
 import { TestEditorPage } from './routes/authoring/TestEditorPage';
@@ -72,6 +73,7 @@ export default function App() {
           <Route path="/profile" element={<ProfilePage />} />
           <Route path="/tests" element={<TestLibraryPage />} />
           <Route path="/practice" element={<PracticePage />} />
+          <Route path="/vocab" element={<VocabPage />} />
           <Route path="/exam/:attemptId" element={<ExamRunnerPage />} />
           <Route path="/results" element={<MyResultsPage />} />
           <Route path="/results/:attemptId" element={<AttemptReviewPage />} />

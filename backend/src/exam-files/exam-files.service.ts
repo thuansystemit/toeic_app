@@ -16,6 +16,7 @@ import { QueueService } from '../queue/queue.service';
 import { TestsService } from '../tests/tests.service';
 import { ExtractionCallbackDto } from './dto/extraction-callback.dto';
 import { ImportQuestionsDto } from './dto/import-questions.dto';
+import { applyExtractionGuardrail } from './extraction-guardrail';
 import { UserRole } from '../users/user.entity';
 
 const ALLOWED_MIME = [
@@ -127,6 +128,33 @@ export class ExamFilesService {
     };
   }
 
+  /**
+   * Persist teacher edits back to the staged questions (before import), so
+   * reopening the review page shows the latest changes. Re-runs the guardrail on
+   * the edited set (flag, keep all) and refreshes the warnings.
+   */
+  async saveStaged(
+    id: string,
+    userId: string,
+    role: UserRole,
+    questions: StagedQuestion[],
+  ): Promise<{ saved: number; warnings: string[] }> {
+    const file = await this.getOwned(id, userId, role);
+    const job = await this.latestJob(id);
+    if (!job || job.status !== 'succeeded') {
+      throw new BadRequestException('Extraction is not ready for review');
+    }
+    const guarded = applyExtractionGuardrail(questions);
+    job.stagedQuestions = guarded.questions;
+    job.warnings = guarded.warnings;
+    await this.jobs.save(job);
+    await this.examFiles.update(
+      { id: file.id },
+      { questionCount: guarded.questions.length },
+    );
+    return { saved: guarded.questions.length, warnings: guarded.warnings };
+  }
+
   async remove(id: string, userId: string, role: UserRole): Promise<void> {
     const file = await this.getOwned(id, userId, role);
     await this.examFiles.delete({ id: file.id }); // jobs cascade
@@ -193,15 +221,19 @@ export class ExamFilesService {
     if (!job) throw new NotFoundException('Job not found');
 
     if (dto.status === 'succeeded') {
+      // Guardrail: the payload shape is already validated by the DTO; this is the
+      // domain check (defense-in-depth against malformed LLM output). It flags
+      // questions that violate TOEIC invariants but keeps them all for review.
+      const guarded = applyExtractionGuardrail(dto.questions ?? []);
       job.status = 'succeeded';
-      job.stagedQuestions = dto.questions ?? [];
-      job.warnings = dto.warnings ?? [];
+      job.stagedQuestions = guarded.questions;
+      job.warnings = [...(dto.warnings ?? []), ...guarded.warnings];
       job.usage = dto.usage ?? null;
       job.model = dto.model ?? job.model;
       await this.jobs.save(job);
       await this.examFiles.update(
         { id: job.examFileId },
-        { status: 'extracted', questionCount: (dto.questions ?? []).length },
+        { status: 'extracted', questionCount: guarded.questions.length },
       );
     } else {
       job.status = 'failed';

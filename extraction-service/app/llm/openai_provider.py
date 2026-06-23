@@ -48,3 +48,19 @@ class OpenAiProvider:
             )
         content = choice.message.content or "{}"
         return json.dumps(json.loads(content))
+
+    def complete_json(self, system_prompt: str, user_text: str) -> str:
+        # Generic JSON task (e.g. skill tagging) — plain json_object mode, no
+        # question schema. Keep the output budget modest; tagging is small.
+        resp = self._client.chat.completions.create(
+            model=self.model,
+            temperature=0,
+            max_completion_tokens=2048,
+            response_format={"type": "json_object"},
+            messages=[
+                {"role": "system", "content": system_prompt},
+                {"role": "user", "content": user_text},
+            ],
+        )
+        content = resp.choices[0].message.content or "{}"
+        return json.dumps(json.loads(content))

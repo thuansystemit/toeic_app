@@ -14,6 +14,7 @@ const CATEGORY_COLORS: Record<string, string> = {
   listening: '#64748b',
 };
 const QUESTION_COLOR = '#94a3b8';
+const WORD_COLOR = '#0ea5e9'; // lexical-layer words (English Learning KG)
 const DIM = '#e2e8f0';
 
 export function KnowledgeGraphPage() {
@@ -66,7 +67,8 @@ export function KnowledgeGraphPage() {
   const counts = useMemo(() => {
     const skills = data.nodes.filter((n) => n.kind === 'skill').length;
     const questions = data.nodes.filter((n) => n.kind === 'question').length;
-    return { skills, questions, links: data.links.length };
+    const words = data.nodes.filter((n) => n.kind === 'word').length;
+    return { skills, questions, words, links: data.links.length };
   }, [data]);
 
   return (
@@ -88,9 +90,13 @@ export function KnowledgeGraphPage() {
           <span className="h-3 w-3 rounded-full" style={{ background: QUESTION_COLOR }} />
           {t('graphQuestion')}
         </span>
+        <span className="inline-flex items-center gap-1">
+          <span className="h-3 w-3 rounded-full" style={{ background: WORD_COLOR }} />
+          {t('graphWord')}
+        </span>
         <span className="ml-auto text-slate-400">
           {counts.skills} {t('graphSkillsN')} · {counts.questions} {t('graphQuestionsN')} ·{' '}
-          {counts.links} {t('graphLinksN')}
+          {counts.words} {t('graphWordsN')} · {counts.links} {t('graphLinksN')}
         </span>
       </div>
 
@@ -99,7 +105,7 @@ export function KnowledgeGraphPage() {
           <div className="grid h-full place-items-center text-slate-400">
             <Icon name="spinner" />
           </div>
-        ) : counts.questions === 0 ? (
+        ) : counts.questions === 0 && counts.words === 0 ? (
           <div className="grid h-full place-items-center gap-2 p-8 text-center">
             <Icon name="empty" className="text-4xl text-slate-300" />
             <p className="font-semibold text-slate-500">{t('graphEmpty')}</p>
@@ -112,7 +118,7 @@ export function KnowledgeGraphPage() {
             backgroundColor="#ffffff"
             cooldownTicks={120}
             nodeRelSize={5}
-            nodeVal={(n: any) => (n.kind === 'skill' ? 4 : 1)}
+            nodeVal={(n: any) => (n.kind === 'skill' ? 4 : n.kind === 'word' ? 2 : 1)}
             linkColor={(l: any) => {
               const s = typeof l.source === 'object' ? l.source.id : l.source;
               const tg = typeof l.target === 'object' ? l.target.id : l.target;
@@ -125,22 +131,39 @@ export function KnowledgeGraphPage() {
               const base =
                 n.kind === 'skill'
                   ? CATEGORY_COLORS[n.category] ?? '#6366f1'
-                  : QUESTION_COLOR;
-              const r = n.kind === 'skill' ? 6 : 3.5;
+                  : n.kind === 'word'
+                    ? WORD_COLOR
+                    : QUESTION_COLOR;
+              const r = n.kind === 'skill' ? 6 : n.kind === 'word' ? 4.5 : 3.5;
               ctx.beginPath();
               ctx.arc(n.x, n.y, r, 0, 2 * Math.PI);
               ctx.fillStyle = active ? base : DIM;
               ctx.fill();
-              if (n.kind === 'skill' && active) {
+              // Label skills and words (both are meaningful); leave questions unlabelled.
+              if ((n.kind === 'skill' || n.kind === 'word') && active) {
                 const fontSize = Math.max(10 / scale, 3);
                 ctx.font = `600 ${fontSize}px Inter, sans-serif`;
-                ctx.fillStyle = '#334155';
+                ctx.fillStyle = n.kind === 'word' ? '#0369a1' : '#334155';
                 ctx.fillText(n.label, n.x + r + 1.5, n.y + fontSize / 3);
               }
             }}
-            nodeLabel={(n: any) =>
-              n.kind === 'skill' ? `${n.label}` : `Part ${n.part}: ${n.label}`
-            }
+            nodeLabel={(n: any) => {
+              if (n.kind === 'skill') return `${n.label}`;
+              if (n.kind === 'word') {
+                const list: string[] = n.sentences ?? [];
+                const items = list
+                  .map(
+                    (s: string, i: number) =>
+                      `<div style="margin-top:2px">${i + 1}. ${s}</div>`,
+                  )
+                  .join('');
+                const body = items
+                  ? `<div style="color:#ffffff;max-width:320px;font-weight:400;margin-top:3px">${items}</div>`
+                  : '';
+                return `<div style="font-weight:700;color:#ffffff">${n.label}</div>${body}`;
+              }
+              return `Part ${n.part}: ${n.label}`;
+            }}
           />
         )}
       </div>

@@ -17,11 +17,15 @@ _PAGE_TEXT_MIN_CHARS = 20
 # Render DPI for OCR — higher = better character accuracy (fewer "as"->"a8"
 # style errors) at the cost of speed. 300 DPI is the sweet spot for TOEIC docs.
 _OCR_DPI = 300
-# Tesseract: LSTM engine (--oem 1), assume a uniform block of text (--psm 6).
-# preserve_interword_spaces=1 keeps choice labels (A) (B) (C) (D) from merging
-# with adjacent text. tessedit_char_blacklist removes characters that never
-# appear in TOEIC content but get falsely recognized from underline blanks.
-_OCR_CONFIG = "--oem 1 --psm 6 -c preserve_interword_spaces=1"
+# Tesseract: LSTM engine (--oem 1), automatic page segmentation (--psm 3).
+# psm 3 detects multi-column layouts and reads each column in proper order;
+# TOEIC reading sheets are two-column, and the old --psm 6 ("one uniform block")
+# read straight across both columns, gluing a left-column question onto the same
+# line as a right-column one. That hid every right-column question number from
+# the line-start question detector (chunker + completeness pass), so half the
+# questions silently went missing. preserve_interword_spaces=1 keeps choice
+# labels (A) (B) (C) (D) from merging with adjacent text.
+_OCR_CONFIG = "--oem 1 --psm 3 -c preserve_interword_spaces=1"
 # A TOEIC sentence blank (a long underline) gets OCR'd as runs of dots / under-
 # scores / backslashes / pluses / zeros / dashes, e.g. "\.....+0", "---",
 # "______", ".. ..", etc. Collapse such runs into a clean "____".

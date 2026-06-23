@@ -59,11 +59,27 @@ export class MasteryService {
       `SELECT DISTINCT skill_id FROM question_skills WHERE question_id = ANY($1)`,
       [questionIds],
     );
-    const skillIds = skillRows.map((r) => r.skill_id);
+    await this.recomputeSkills(userId, skillRows.map((r) => r.skill_id));
+  }
+
+  /**
+   * Recompute mastery for the skill a just-answered vocabulary exercise tests
+   * (English Learning KG §8). Vocab and question practice share one mastery row.
+   */
+  async recomputeForVocab(userId: string, skillId: string): Promise<void> {
+    await this.recomputeSkills(userId, [skillId]);
+  }
+
+  /**
+   * Recompute each given skill from the learner's whole graded history —
+   * **unioning** TOEIC question attempts and vocabulary exercise attempts so the
+   * two practice surfaces feed one recency-weighted score. When a learner has no
+   * vocab attempts the vocab branch contributes nothing, so question-only
+   * behaviour is unchanged.
+   */
+  private async recomputeSkills(userId: string, skillIds: string[]): Promise<void> {
     if (skillIds.length === 0) return;
 
-    // Recompute each affected skill from the learner's whole graded history:
-    // recency-weighted accuracy + raw counts. Only terminal attempts count.
     const agg: {
       skill_id: string;
       attempts: string;
@@ -74,7 +90,7 @@ export class MasteryService {
       WITH graded AS (
         SELECT qs.skill_id,
                aa.is_correct,
-               POWER($3::float8,
+               POWER($2::float8,
                      EXTRACT(EPOCH FROM (now() - COALESCE(aa.answered_at, a.submitted_at, now())))
                      / 86400.0) AS w
         FROM attempt_answers aa
@@ -83,7 +99,17 @@ export class MasteryService {
         WHERE a.user_id = $1
           AND a.status IN ('submitted', 'expired')
           AND aa.is_correct IS NOT NULL
-          AND qs.skill_id = ANY($2)
+          AND qs.skill_id = ANY($3)
+        UNION ALL
+        SELECT ex.skill_id,
+               la.is_correct,
+               POWER($2::float8,
+                     EXTRACT(EPOCH FROM (now() - la.created_at)) / 86400.0) AS w
+        FROM lex_attempts la
+        JOIN lex_exercises ex ON ex.id = la.exercise_id
+        WHERE la.user_id = $1
+          AND ex.skill_id IS NOT NULL
+          AND ex.skill_id = ANY($3)
       )
       SELECT skill_id,
              COUNT(*)                                   AS attempts,
@@ -92,7 +118,7 @@ export class MasteryService {
       FROM graded
       GROUP BY skill_id
       `,
-      [userId, skillIds, MasteryService.DECAY],
+      [userId, MasteryService.DECAY, skillIds],
     );
 
     for (const row of agg) {

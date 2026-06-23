@@ -24,11 +24,13 @@ export function AppLayout({ children }: { children: ReactNode }) {
   };
 
   // Role-focused navigation: admins manage, teachers author, learners practice.
+  // Vocabulary is available to every role (any authenticated user can look words up).
   const links =
     role === 'admin'
       ? [
           { to: '/admin/users', label: t('navAdmin') },
           { to: '/admin/config', label: t('navConfig') },
+          { to: '/vocab', label: t('navVocab') },
         ]
       : role === 'teacher'
         ? [
@@ -36,10 +38,12 @@ export function AppLayout({ children }: { children: ReactNode }) {
             { to: '/exam-files', label: t('navImport') },
             { to: '/graph', label: t('navGraph') },
             { to: '/tests', label: t('navTests') },
+            { to: '/vocab', label: t('navVocab') },
           ]
         : [
             { to: '/tests', label: t('navTests') },
             { to: '/practice', label: t('navPractice') },
+            { to: '/vocab', label: t('navVocab') },
             { to: '/results', label: t('navResults') },
           ];
 

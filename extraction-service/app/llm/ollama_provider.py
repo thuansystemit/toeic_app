@@ -123,6 +123,61 @@ class OllamaProvider:
 
         raise RuntimeError(f"Ollama request failed after {_MAX_ATTEMPTS} attempts: {last_err}")
 
+    def complete_json(self, system_prompt: str, user_text: str) -> str:
+        """Generic JSON task (skill tagging) — no count hint, smaller predict
+        budget, returns the model's JSON object as a string."""
+        payload = {
+            "model": self.model,
+            "format": "json",
+            "stream": False,
+            "options": {"temperature": 0, "num_ctx": 16384, "num_predict": 2048},
+            "messages": [
+                {"role": "system", "content": system_prompt},
+                {"role": "user", "content": user_text},
+            ],
+        }
+        last_err: Exception | None = None
+        for attempt in range(_MAX_ATTEMPTS):
+            try:
+                resp = requests.post(
+                    f"{self.base_url}/api/chat", json=payload, timeout=300,
+                )
+                resp.raise_for_status()
+                content = resp.json().get("message", {}).get("content", "")
+                return json.dumps(_loads_object(content))
+            except (requests.ConnectionError, requests.Timeout) as e:
+                last_err = e
+            except requests.HTTPError as e:
+                if resp.status_code not in _RETRY_STATUS:
+                    raise
+                last_err = e
+            if attempt < _MAX_ATTEMPTS - 1:
+                time.sleep(2 ** attempt)
+        raise RuntimeError(f"Ollama tagging request failed after {_MAX_ATTEMPTS} attempts: {last_err}")
+
+
+def _loads_object(content: str) -> dict:
+    """Lenient parse of a single JSON object from small-model output. Tries a
+    strict parse, then isolates the outermost ``{ ... }``. Returns ``{}`` if
+    nothing parses (the tagger treats that as 'no tags')."""
+    content = (content or "").strip()
+    if not content:
+        return {}
+    try:
+        result = json.loads(content)
+        return result if isinstance(result, dict) else {}
+    except json.JSONDecodeError:
+        pass
+    start = content.find("{")
+    end = content.rfind("}")
+    if start >= 0 and end > start:
+        try:
+            result = json.loads(content[start : end + 1])
+            return result if isinstance(result, dict) else {}
+        except json.JSONDecodeError:
+            pass
+    return {}
+
 
 def _robust_parse(content: str) -> dict:
     """Parse JSON from small-model output with aggressive recovery.

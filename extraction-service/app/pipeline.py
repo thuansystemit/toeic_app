@@ -111,6 +111,15 @@ def run_extraction(
     # 3. chunking (EDIES §9)
     stage("CHUNKING")
     chunks = chunk_text(cleaned, settings.chunk_tokens, settings.chunk_overlap)
+    # Diagnostic: record which question numbers landed in each chunk. Lets us tell
+    # a chunking gap (a number missing from EVERY chunk) apart from an extraction
+    # gap (number present in a chunk but skipped at validation).
+    audit(
+        "CHUNK_MAP",
+        jobId=job_id,
+        chunks=len(chunks),
+        chunkQuestions={c.index: c.question_numbers for c in chunks},
+    )
 
     # 4. LLM extraction per chunk (EDIES §13: validate every output).
     stage("EXTRACTING")
@@ -231,7 +240,18 @@ def run_extraction(
             f"(too many to re-extract individually): {missing_nums[:10]}..."
         )
 
-    # 6. output validation + quality gate (EDIES §12, §22)
+    # 6. skill tagging (knowledge-graph): a focused, decoupled pass that maps each
+    # question to TOEIC taxonomy codes. Best-effort — never fails the job.
+    if settings.skill_tagging_enabled and questions:
+        stage("TAGGING")
+        try:
+            from app.tagging import tag_questions
+
+            tag_questions(provider, questions, batch_size=settings.skill_tagging_batch)
+        except Exception as e:  # noqa: BLE001 — tagging is non-critical
+            warnings.append(f"skill tagging failed: {e}")
+
+    # 7. output validation + quality gate (EDIES §12, §22)
     stage("VALIDATING_OUTPUT")
     if not questions:
         raise ExtractionError(

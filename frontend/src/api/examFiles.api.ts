@@ -28,6 +28,15 @@ export async function reviewExamFile(
   return res.data;
 }
 
+/** Persist teacher edits back to the staged questions (without importing). */
+export async function saveExamFileReview(
+  id: string,
+  questions: StagedQuestion[],
+): Promise<{ saved: number; warnings: string[] }> {
+  const res = await api.put(`/exam-files/${id}/review`, { questions });
+  return res.data;
+}
+
 export async function importExamFile(
   id: string,
   testId: string,

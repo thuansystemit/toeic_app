@@ -31,6 +31,20 @@ class ClaudeProvider:
         )
         return json.dumps(_extract_json_object(text))
 
+    def complete_json(self, system_prompt: str, user_text: str) -> str:
+        # Generic JSON task (e.g. skill tagging): smaller output budget, same
+        # object-extraction tolerance as extract_json.
+        resp = self._client.messages.create(
+            model=self.model,
+            max_tokens=2048,
+            system=system_prompt,
+            messages=[{"role": "user", "content": user_text}],
+        )
+        text = "".join(
+            block.text for block in resp.content if getattr(block, "type", "") == "text"
+        )
+        return json.dumps(_extract_json_object(text))
+
 
 def _extract_json_object(text: str) -> dict:
     """Parse the JSON object from the model's reply. Tolerates code fences and any

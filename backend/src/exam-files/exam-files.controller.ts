@@ -7,6 +7,7 @@ import {
   ParseUUIDPipe,
   Patch,
   Post,
+  Put,
   UploadedFile,
   UseGuards,
   UseInterceptors,
@@ -19,6 +20,7 @@ import { CurrentUser } from '../auth/current-user.decorator';
 import { AuthenticatedUser } from '../auth/jwt.strategy';
 import { ExamFilesService } from './exam-files.service';
 import { ImportQuestionsDto } from './dto/import-questions.dto';
+import { SaveStagedQuestionsDto } from './dto/save-staged.dto';
 import { UpdateExamFileDto } from './dto/update-exam-file.dto';
 
 @Controller('exam-files')
@@ -75,6 +77,16 @@ export class ExamFilesController {
     @Param('id', ParseUUIDPipe) id: string,
   ) {
     return this.examFilesService.review(id, user.id, user.role);
+  }
+
+  // Save teacher edits back to the staged questions (without importing).
+  @Put(':id/review')
+  saveReview(
+    @CurrentUser() user: AuthenticatedUser,
+    @Param('id', ParseUUIDPipe) id: string,
+    @Body() dto: SaveStagedQuestionsDto,
+  ) {
+    return this.examFilesService.saveStaged(id, user.id, user.role, dto.questions);
   }
 
   @Post(':id/import')

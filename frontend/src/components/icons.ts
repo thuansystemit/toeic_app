@@ -33,6 +33,9 @@ export const ICONS = {
   extract: 'fa-solid fa-wand-magic-sparkles',
   reviewList: 'fa-solid fa-list-check',
   chevronDown: 'fa-solid fa-chevron-down',
+  vocab: 'fa-solid fa-spell-check',
+  search: 'fa-solid fa-magnifying-glass',
+  save: 'fa-solid fa-floppy-disk',
 } as const;
 
 export type IconName = keyof typeof ICONS;

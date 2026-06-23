@@ -46,10 +46,11 @@ export class TestsService {
   async getKnowledgeGraph(): Promise<{
     nodes: {
       id: string;
-      kind: 'skill' | 'question';
+      kind: 'skill' | 'question' | 'word';
       label: string;
       category?: string;
       part?: number;
+      sentences?: string[];
     }[];
     links: { source: string; target: string }[];
   }> {
@@ -71,10 +72,11 @@ export class TestsService {
 
     const nodes: {
       id: string;
-      kind: 'skill' | 'question';
+      kind: 'skill' | 'question' | 'word';
       label: string;
       category?: string;
       part?: number;
+      sentences?: string[];
     }[] = skills.map((s) => ({
       id: `s:${s.id}`,
       kind: 'skill',
@@ -96,6 +98,48 @@ export class TestsService {
       }
       links.push({ source: `q:${r.question_id}`, target: `s:${r.skill_id}` });
     }
+
+    // Lexical layer (English Learning KG): every word a learner has looked up
+    // becomes a node, linked to the skills its generated exercises test. This is
+    // why a fresh lookup (e.g. "security") shows up here — the lookup persists
+    // the word into the same graph.
+    // Up to 10 example sentences per word are carried on the node so the graph UI
+    // can list the word's sentences on hover.
+    const wordRows: { word_id: string; lemma: string; sentences: string[] | null }[] =
+      await this.skills.manager.query(
+        `SELECT w.id AS word_id, w.lemma,
+                (SELECT array_agg(t.text)
+                   FROM (
+                     SELECT se.text
+                     FROM lex_senses sn
+                     JOIN lex_sentences se ON se.sense_id = sn.id
+                     WHERE sn.word_id = w.id
+                     ORDER BY se.id
+                     LIMIT 10
+                   ) t) AS sentences
+         FROM lex_words w
+         ORDER BY w.lemma`,
+      );
+    for (const w of wordRows) {
+      nodes.push({
+        id: `w:${w.word_id}`,
+        kind: 'word',
+        label: w.lemma,
+        sentences: w.sentences ?? [],
+      });
+    }
+    const wordSkillRows: { word_id: string; skill_id: string }[] =
+      await this.skills.manager.query(
+        `SELECT DISTINCT sn.word_id, e.skill_id
+         FROM lex_exercises e
+         JOIN lex_sentences se ON se.id = e.sentence_id
+         JOIN lex_senses   sn ON sn.id = se.sense_id
+         WHERE e.skill_id IS NOT NULL`,
+      );
+    for (const r of wordSkillRows) {
+      links.push({ source: `w:${r.word_id}`, target: `s:${r.skill_id}` });
+    }
+
     return { nodes, links };
   }
 

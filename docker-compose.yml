@@ -56,6 +56,11 @@ services:
       # Default extraction provider for new jobs — keep in sync with the worker's
       # LLM_PROVIDER via the repo-root .env (ollama | claude | openai).
       LLM_PROVIDER: ${LLM_PROVIDER:-ollama}
+      # Synchronous vocab generation (English Learning KG, P1) calls Ollama from
+      # the backend. From inside the container, the host's Ollama is reachable via
+      # host.docker.internal (override OLLAMA_BASE_URL in .env for a remote host).
+      OLLAMA_BASE_URL: ${OLLAMA_BASE_URL:-http://host.docker.internal:11434}
+      OLLAMA_MODEL: ${OLLAMA_MODEL:-qwen2.5:3b}
     ports:
       - "3000:3000"
     volumes:
@@ -73,7 +78,7 @@ services:
         VITE_API_URL: /api
         # Social login: set these in the repo-root .env to show the real
         # Google/Facebook buttons (empty → buttons render disabled).
-        VITE_GOOGLE_CLIENT_ID: ${VITE_GOOGLE_CLIENT_ID:-}
+        VITE_GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID:-}
         VITE_FACEBOOK_APP_ID: ${VITE_FACEBOOK_APP_ID:-}
     container_name: toeic_frontend
     restart: unless-stopped

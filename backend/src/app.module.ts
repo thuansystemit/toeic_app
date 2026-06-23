@@ -30,6 +30,8 @@ import { AdminModule } from './admin/admin.module';
 import { ProfileModule } from './profile/profile.module';
 import { ExamFilesModule } from './exam-files/exam-files.module';
 import { MasteryModule } from './mastery/mastery.module';
+import { LlmModule } from './llm/llm.module';
+import { VocabModule } from './vocab/vocab.module';
 import { HealthController } from './health.controller';
 
 const ENTITIES = [
@@ -85,6 +87,8 @@ const ENTITIES = [
     ProfileModule,
     ExamFilesModule,
     MasteryModule,
+    LlmModule,
+    VocabModule,
   ],
   controllers: [HealthController],
 })

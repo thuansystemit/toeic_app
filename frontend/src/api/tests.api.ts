@@ -14,10 +14,11 @@ export async function listSkills(): Promise<Skill[]> {
 
 export interface GraphNode {
   id: string;
-  kind: 'skill' | 'question';
+  kind: 'skill' | 'question' | 'word';
   label: string;
   category?: string;
   part?: number;
+  sentences?: string[]; // example sentences for word nodes (shown on hover)
 }
 export interface KnowledgeGraph {
   nodes: GraphNode[];
