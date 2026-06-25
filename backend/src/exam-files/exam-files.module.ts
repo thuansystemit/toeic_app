@@ -8,6 +8,7 @@ import { InternalController } from './internal.controller';
 import { FilesModule } from '../files/files.module';
 import { QueueModule } from '../queue/queue.module';
 import { TestsModule } from '../tests/tests.module';
+import { VocabModule } from '../vocab/vocab.module';
 
 @Module({
   imports: [
@@ -15,6 +16,7 @@ import { TestsModule } from '../tests/tests.module';
     FilesModule,
     QueueModule,
     TestsModule,
+    VocabModule,
   ],
   providers: [ExamFilesService],
   controllers: [ExamFilesController, InternalController],

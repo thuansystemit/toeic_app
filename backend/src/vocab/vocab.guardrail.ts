@@ -106,7 +106,12 @@ export function validateGenerated(
   skillMap: Map<string, string>,
 ): ValidWord {
   const flagged: string[] = [];
-  const pos = (gen.pos || 'unknown').trim().toLowerCase();
+  // Normalize the LLM's free-text fields to fit their columns: pos -> first word
+  // (e.g. "verb (transitive)" -> "verb"), cefr -> a valid level or null
+  // (e.g. "Intermediate"/"B1-B2" -> null/"B1"). Prevents a varchar overflow from
+  // aborting the whole word's insert transaction.
+  const pos = ((gen.pos || '').toLowerCase().match(/[a-z]+/)?.[0] ?? 'unknown').slice(0, 16);
+  const cefr = (gen.cefr || '').match(/[abc][12]/i)?.[0]?.toUpperCase() ?? null;
   const senses: ValidSense[] = [];
 
   gen.senses?.forEach((s, si) => {
@@ -142,7 +147,7 @@ export function validateGenerated(
   return {
     lemma: normalizeLemma(lemma),
     pos,
-    cefr: (gen.cefr || '').trim() || null,
+    cefr,
     senses,
     collocations: (gen.collocations ?? [])
       .filter((c) => c?.collocate)

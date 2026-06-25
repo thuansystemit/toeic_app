@@ -1,5 +1,6 @@
-import { FormEvent, useState } from 'react';
+import { FormEvent, useCallback, useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
+import { useParams } from 'react-router-dom';
 import { AxiosError } from 'axios';
 import { AppLayout } from '../../components/AppLayout';
 import { Icon } from '../../components/Icon';
@@ -67,30 +68,46 @@ function ClozeExercise({ exercise }: { exercise: VocabExercise }) {
 
 export function VocabPage() {
   const { t } = useTranslation(['vocab', 'common']);
-  const [term, setTerm] = useState('');
+  const { word: wordParam } = useParams<{ word?: string }>();
+  const [term, setTerm] = useState(wordParam ?? '');
   const [entry, setEntry] = useState<VocabEntry | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const search = async (e: FormEvent) => {
+  const runLookup = useCallback(
+    async (raw: string) => {
+      const word = raw.trim();
+      if (!word) return;
+      if (!/^[A-Za-z][A-Za-z'-]*$/.test(word)) {
+        setError(t('invalidWord'));
+        return;
+      }
+      setLoading(true);
+      setError(null);
+      setEntry(null);
+      try {
+        setEntry(await lookupWord(word));
+      } catch (err) {
+        const status = (err as AxiosError).response?.status;
+        setError(status === 404 ? t('notFound', { word }) : t('error'));
+      } finally {
+        setLoading(false);
+      }
+    },
+    [t],
+  );
+
+  // Auto-load when arriving via /vocab/:word (e.g. clicking a word in the graph).
+  useEffect(() => {
+    if (wordParam) {
+      setTerm(wordParam);
+      void runLookup(wordParam);
+    }
+  }, [wordParam, runLookup]);
+
+  const search = (e: FormEvent) => {
     e.preventDefault();
-    const word = term.trim();
-    if (!word || loading) return;
-    if (!/^[A-Za-z][A-Za-z'-]*$/.test(word)) {
-      setError(t('invalidWord'));
-      return;
-    }
-    setLoading(true);
-    setError(null);
-    setEntry(null);
-    try {
-      setEntry(await lookupWord(word));
-    } catch (err) {
-      const status = (err as AxiosError).response?.status;
-      setError(status === 404 ? t('notFound', { word }) : t('error'));
-    } finally {
-      setLoading(false);
-    }
+    if (!loading) void runLookup(term);
   };
 
   return (
@@ -103,16 +120,26 @@ export function VocabPage() {
         <p className="mt-1 text-slate-500">{t('subtitle')}</p>
       </div>
 
-      <form onSubmit={search} className="mb-6 flex items-center gap-2">
-        <input
-          className="input"
-          value={term}
-          onChange={(e) => setTerm(e.target.value)}
-          placeholder={t('searchPlaceholder')}
-          autoFocus
-        />
-        <button type="submit" className="btn-primary" disabled={loading || !term.trim()}>
-          <Icon name={loading ? 'spinner' : 'search'} className="mr-1" />
+      <form onSubmit={search} className="mb-6 flex max-w-xl items-stretch gap-2">
+        <div className="relative flex-1">
+          <Icon
+            name="search"
+            className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400"
+          />
+          <input
+            className="input pl-10"
+            value={term}
+            onChange={(e) => setTerm(e.target.value)}
+            placeholder={t('searchPlaceholder')}
+            autoFocus
+          />
+        </div>
+        <button
+          type="submit"
+          className="btn-primary shrink-0 px-6"
+          disabled={loading || !term.trim()}
+        >
+          {loading && <Icon name="spinner" />}
           {t('searchButton')}
         </button>
       </form>

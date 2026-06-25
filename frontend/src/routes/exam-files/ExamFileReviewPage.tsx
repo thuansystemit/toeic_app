@@ -5,6 +5,7 @@ import { AxiosError } from 'axios';
 import { AppLayout } from '../../components/AppLayout';
 import { Icon } from '../../components/Icon';
 import {
+  buildVocabFromAnswers,
   importExamFile,
   reviewExamFile,
   saveExamFileReview,
@@ -61,6 +62,7 @@ export function ExamFileReviewPage() {
   const [loading, setLoading] = useState(true);
   const [importing, setImporting] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [buildingVocab, setBuildingVocab] = useState(false);
   const [dirty, setDirty] = useState(false);
   const [msg, setMsg] = useState<{ text: string; ok: boolean } | null>(null);
 
@@ -135,6 +137,21 @@ export function ExamFileReviewPage() {
     }
   };
 
+  const doBuildVocab = async () => {
+    if (!id) return;
+    setMsg(null);
+    setBuildingVocab(true);
+    try {
+      const res = await buildVocabFromAnswers(id);
+      setMsg({ text: t('buildVocabStarted', { count: res.words.length }), ok: true });
+    } catch (e) {
+      const ax = e as AxiosError<{ message: string }>;
+      setMsg({ text: ax.response?.data?.message ?? (e as Error).message, ok: false });
+    } finally {
+      setBuildingVocab(false);
+    }
+  };
+
   const doImport = async () => {
     if (!id || !testId) return;
     setMsg(null);
@@ -178,6 +195,14 @@ export function ExamFileReviewPage() {
         </select>
         <button className="btn-ghost btn-sm" onClick={addQuestion}>
           + {t('addQuestion')}
+        </button>
+        <button
+          className="btn-ghost btn-sm"
+          onClick={doBuildVocab}
+          disabled={buildingVocab || questions.length === 0}
+          title={t('buildVocabHint')}
+        >
+          <Icon name={buildingVocab ? 'spinner' : 'vocab'} /> {t('buildVocab')}
         </button>
         {dirty && (
           <span className="text-xs font-semibold text-amber-600">

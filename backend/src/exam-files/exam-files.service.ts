@@ -17,6 +17,7 @@ import { TestsService } from '../tests/tests.service';
 import { ExtractionCallbackDto } from './dto/extraction-callback.dto';
 import { ImportQuestionsDto } from './dto/import-questions.dto';
 import { applyExtractionGuardrail } from './extraction-guardrail';
+import { VocabService } from '../vocab/vocab.service';
 import { UserRole } from '../users/user.entity';
 
 const ALLOWED_MIME = [
@@ -35,6 +36,7 @@ export class ExamFilesService {
     private readonly filesService: FilesService,
     private readonly queue: QueueService,
     private readonly testsService: TestsService,
+    private readonly vocab: VocabService,
   ) {}
 
   async upload(
@@ -153,6 +155,29 @@ export class ExamFilesService {
       { questionCount: guarded.questions.length },
     );
     return { saved: guarded.questions.length, warnings: guarded.warnings };
+  }
+
+  /**
+   * Build vocabulary graph nodes from this file's correct answers: take each
+   * question's correct choice, keep the single-word answers, and feed them into
+   * the same vocab generate-and-cache used for user lookups (background). So a
+   * Part-5 answer like "refundable" becomes a word node with its sentences.
+   */
+  async buildVocabFromAnswers(
+    id: string,
+    userId: string,
+    role: UserRole,
+  ): Promise<{ words: string[] }> {
+    const file = await this.getOwned(id, userId, role);
+    const job = await this.latestJob(id);
+    if (!job || job.status !== 'succeeded') {
+      throw new BadRequestException('Extraction is not ready for review');
+    }
+    const answers = (job.stagedQuestions ?? [])
+      .map((q) => q.choices?.find((c) => c.isCorrect)?.text ?? '')
+      .filter((t) => t.trim() !== '');
+    const words = this.vocab.prewarm(answers);
+    return { words };
   }
 
   async remove(id: string, userId: string, role: UserRole): Promise<void> {

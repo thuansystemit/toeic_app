@@ -21,6 +21,23 @@ export class OllamaProvider implements LlmProvider {
   }
 
   async generateJson(system: string, user: string): Promise<string> {
+    // Retry transient failures (network blips, host briefly busy) with backoff so
+    // a single hiccup doesn't drop the request — important for the background
+    // batch build, where one blip otherwise fails every remaining word fast.
+    let lastErr: unknown;
+    for (let attempt = 1; attempt <= 3; attempt++) {
+      try {
+        return await this.call(system, user);
+      } catch (e) {
+        lastErr = e;
+        this.logger.warn(`Ollama attempt ${attempt}/3 failed: ${(e as Error).message}`);
+        if (attempt < 3) await new Promise((r) => setTimeout(r, 1500 * attempt));
+      }
+    }
+    throw lastErr;
+  }
+
+  private async call(system: string, user: string): Promise<string> {
     const res = await fetch(`${this.baseUrl}/api/chat`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },

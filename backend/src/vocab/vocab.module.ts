@@ -14,5 +14,6 @@ import { VocabGenerator } from './vocab.generator';
   imports: [LlmModule, MasteryModule],
   controllers: [VocabController],
   providers: [VocabService, VocabGenerator],
+  exports: [VocabService],
 })
 export class VocabModule {}

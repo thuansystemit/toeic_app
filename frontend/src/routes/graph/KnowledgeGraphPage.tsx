@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
+import { useNavigate } from 'react-router-dom';
 import ForceGraph2D from 'react-force-graph-2d';
 import { AppLayout } from '../../components/AppLayout';
 import { getKnowledgeGraph, type KnowledgeGraph } from '../../api/tests.api';
@@ -19,6 +20,7 @@ const DIM = '#e2e8f0';
 
 export function KnowledgeGraphPage() {
   const { t } = useTranslation(['test', 'common']);
+  const navigate = useNavigate();
   const [data, setData] = useState<KnowledgeGraph>({ nodes: [], links: [] });
   const [loading, setLoading] = useState(true);
   const [selected, setSelected] = useState<string | null>(null);
@@ -124,7 +126,18 @@ export function KnowledgeGraphPage() {
               const tg = typeof l.target === 'object' ? l.target.id : l.target;
               return isActive(s) && isActive(tg) ? '#cbd5e1' : '#f1f5f9';
             }}
-            onNodeClick={(n: any) => setSelected((cur) => (cur === n.id ? null : n.id))}
+            onNodeClick={(n: any) => {
+              // Word nodes open a page listing the sentences we ALREADY have on
+              // the node — passed via router state, so no extra lookup is made.
+              // Skill/question nodes just highlight their neighborhood.
+              if (n.kind === 'word') {
+                navigate(`/word/${encodeURIComponent(n.label)}`, {
+                  state: { sentences: n.sentences ?? [] },
+                });
+              } else {
+                setSelected((cur) => (cur === n.id ? null : n.id));
+              }
+            }}
             onBackgroundClick={() => setSelected(null)}
             nodeCanvasObject={(n: any, ctx, scale) => {
               const active = isActive(n.id);
@@ -160,7 +173,8 @@ export function KnowledgeGraphPage() {
                 const body = items
                   ? `<div style="color:#ffffff;max-width:320px;font-weight:400;margin-top:3px">${items}</div>`
                   : '';
-                return `<div style="font-weight:700;color:#ffffff">${n.label}</div>${body}`;
+                const hint = `<div style="color:#7dd3fc;font-size:11px;font-weight:600;margin-top:3px">${t('graphWordOpen')}</div>`;
+                return `<div style="font-weight:700;color:#ffffff">${n.label}</div>${body}${hint}`;
               }
               return `Part ${n.part}: ${n.label}`;
             }}

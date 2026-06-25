@@ -11,6 +11,34 @@ import { validateGenerated, validateItem } from './vocab.guardrail';
 import { normalizeLemma, toLemma } from './vocab.lemmatizer';
 import { ValidItem, ValidWord, VocabResponse } from './vocab.types';
 
+/** Function/grammar words skipped when building vocab nodes from answers — TOEIC
+ *  Part 5 also tests grammar, so these answers aren't useful vocabulary. */
+const STOP_WORDS = new Set([
+  // articles / determiners
+  'the', 'this', 'that', 'these', 'those', 'some', 'any', 'each', 'every',
+  'all', 'both', 'either', 'neither', 'such', 'much', 'many', 'few', 'several',
+  'another', 'other', 'most', 'more',
+  // pronouns
+  'you', 'she', 'her', 'his', 'him', 'its', 'our', 'their', 'they', 'them',
+  'your', 'yours', 'hers', 'ours', 'theirs', 'who', 'whom', 'whose', 'which',
+  'what', 'whoever', 'whatever', 'one', 'ones', 'someone', 'anyone', 'everyone',
+  // prepositions
+  'for', 'from', 'with', 'into', 'onto', 'upon', 'about', 'above', 'below',
+  'under', 'over', 'before', 'after', 'during', 'until', 'since', 'between',
+  'among', 'through', 'against', 'without', 'within', 'prior', 'toward',
+  'towards', 'across', 'behind', 'beyond', 'near', 'off',
+  // conjunctions
+  'and', 'but', 'nor', 'yet', 'because', 'although', 'though', 'while',
+  'whereas', 'unless', 'whether', 'however', 'therefore', 'moreover',
+  // aux / modal
+  'are', 'was', 'were', 'been', 'being', 'have', 'has', 'had', 'will', 'would',
+  'shall', 'should', 'can', 'could', 'may', 'might', 'must', 'does', 'did',
+  // common adverbs / misc
+  'not', 'also', 'too', 'very', 'just', 'still', 'even', 'only', 'then', 'than',
+  'when', 'where', 'why', 'how', 'here', 'there', 'always', 'never', 'often',
+  'usually', 'soon', 'already', 'yet',
+]);
+
 /** Grade feedback returned after a learner answers an exercise. */
 export interface AttemptResult {
   correct: boolean;
@@ -43,6 +71,46 @@ export class VocabService {
       wordId = await this.generateAndPersist(lemma);
     }
     return this.assemble(wordId);
+  }
+
+  /**
+   * Seed the graph from a list of raw answer strings (e.g. extracted question
+   * answers): keep only single-word entries, dedupe, and generate-and-cache each
+   * in the BACKGROUND so it becomes a word node with its sentences — exactly like
+   * a user lookup. Returns the distinct words that will be processed.
+   */
+  prewarm(rawAnswers: string[]): string[] {
+    const words = Array.from(
+      new Set(
+        rawAnswers
+          .map((a) => (a ?? '').trim().toLowerCase())
+          // single word, letters only, and long enough to be a content word
+          .filter((a) => /^[a-z][a-z'-]{2,}$/.test(a))
+          // skip grammar/function answers (Part 5 also tests grammar) — they
+          // aren't useful vocabulary nodes. Surface form is kept as-is (no
+          // lemmatizing) so inflected answers like "composed" stay real words.
+          .filter((a) => !STOP_WORDS.has(a)),
+      ),
+    );
+    // Fire-and-forget; sequential so we don't hammer the LLM host.
+    void this.prewarmSequential(words);
+    return words;
+  }
+
+  private async prewarmSequential(words: string[]): Promise<void> {
+    let made = 0;
+    for (const lemma of words) {
+      try {
+        if (await this.findWordId(lemma)) continue; // already cached
+        await this.generateAndPersist(lemma);
+        made++;
+      } catch (e) {
+        this.logger.warn(`prewarm "${lemma}" failed: ${(e as Error).message}`);
+      }
+    }
+    this.logger.log(
+      `prewarm done: ${made} generated, ${words.length - made} already cached/failed`,
+    );
   }
 
   private async findWordId(lemma: string): Promise<string | null> {
@@ -171,7 +239,9 @@ export class VocabService {
        VALUES ($1, $2, $3, 'generated', 'llm', $4, $5)
        ON CONFLICT (lemma, pos) DO UPDATE SET model = EXCLUDED.model
        RETURNING id`,
-      [w.lemma, w.pos, w.cefr, this.generator.model, VOCAB_PROMPT_VERSION],
+      // Truncate column-bound fields defensively (cefr/pos are already
+      // normalized by the guardrail; this guards any remaining overflow).
+      [w.lemma.slice(0, 80), w.pos.slice(0, 16), w.cefr, this.generator.model, VOCAB_PROMPT_VERSION],
     );
 
     for (const sense of w.senses) {
@@ -188,12 +258,12 @@ export class VocabService {
            ON CONFLICT (template)
              DO UPDATE SET skill_id = COALESCE(lex_patterns.skill_id, EXCLUDED.skill_id)
            RETURNING id`,
-          [item.patternName, item.patternTemplate, item.skillId],
+          [item.patternName.slice(0, 120), item.patternTemplate.slice(0, 120), item.skillId],
         );
         await qr.query(
           `INSERT INTO lex_word_patterns (word_id, pattern_id, display)
            VALUES ($1, $2, $3) ON CONFLICT (word_id, pattern_id) DO NOTHING`,
-          [wordId, patternId, item.patternDisplay],
+          [wordId, patternId, item.patternDisplay.slice(0, 120)],
         );
         const [{ id: sentenceId }]: { id: string }[] = await qr.query(
           `INSERT INTO lex_sentences
@@ -204,23 +274,29 @@ export class VocabService {
         await qr.query(
           `INSERT INTO lex_exercises (sentence_id, kind, prompt, answer, skill_id)
            VALUES ($1, 'cloze', $2, $3, $4)`,
-          [sentenceId, item.exercisePrompt, item.exerciseAnswer, item.skillId],
+          [sentenceId, item.exercisePrompt, item.exerciseAnswer.slice(0, 80), item.skillId],
         );
       }
     }
 
+    // Truncate to the column limits — a long LLM relation/collocate must never
+    // overflow and abort the whole word's transaction (secondary data).
     for (const c of w.collocations) {
       await qr.query(
         `INSERT INTO lex_collocations (head_word_id, collocate, relation)
          VALUES ($1, $2, $3) ON CONFLICT DO NOTHING`,
-        [wordId, c.collocate, c.relation],
+        [wordId, c.collocate.slice(0, 80), (c.relation || 'related').slice(0, 40)],
       );
     }
     for (const f of w.family) {
       await qr.query(
         `INSERT INTO lex_word_relations (from_word_id, to_lemma, relation)
          VALUES ($1, $2, $3) ON CONFLICT DO NOTHING`,
-        [wordId, normalizeLemma(f.lemma), f.relation],
+        [
+          wordId,
+          normalizeLemma(f.lemma).slice(0, 80),
+          (f.relation || 'related').slice(0, 40),
+        ],
       );
     }
     return wordId;

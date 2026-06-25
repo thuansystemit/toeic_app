@@ -37,6 +37,14 @@ export async function saveExamFileReview(
   return res.data;
 }
 
+/** Build vocab graph nodes from this file's correct answers (background). */
+export async function buildVocabFromAnswers(
+  id: string,
+): Promise<{ words: string[] }> {
+  const res = await api.post(`/exam-files/${id}/build-vocab`);
+  return res.data;
+}
+
 export async function importExamFile(
   id: string,
   testId: string,

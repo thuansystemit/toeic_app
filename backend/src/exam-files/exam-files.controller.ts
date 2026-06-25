@@ -89,6 +89,15 @@ export class ExamFilesController {
     return this.examFilesService.saveStaged(id, user.id, user.role, dto.questions);
   }
 
+  // Build vocab graph nodes from this file's correct answers (background).
+  @Post(':id/build-vocab')
+  buildVocab(
+    @CurrentUser() user: AuthenticatedUser,
+    @Param('id', ParseUUIDPipe) id: string,
+  ) {
+    return this.examFilesService.buildVocabFromAnswers(id, user.id, user.role);
+  }
+
   @Post(':id/import')
   import(
     @CurrentUser() user: AuthenticatedUser,
