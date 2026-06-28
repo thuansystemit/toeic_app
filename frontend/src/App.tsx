@@ -15,6 +15,7 @@ import { MyResultsPage } from './routes/review/MyResultsPage';
 import { PracticePage } from './routes/practice/PracticePage';
 import { VocabPage } from './routes/vocab/VocabPage';
 import { WordSentencesPage } from './routes/vocab/WordSentencesPage';
+import { ChatPage } from './routes/chat/ChatPage';
 import { AttemptReviewPage } from './routes/review/AttemptReviewPage';
 import { AuthoringListPage } from './routes/authoring/AuthoringListPage';
 import { TestEditorPage } from './routes/authoring/TestEditorPage';
@@ -77,6 +78,9 @@ export default function App() {
           <Route path="/vocab" element={<VocabPage />} />
           <Route path="/vocab/:word" element={<VocabPage />} />
           <Route path="/word/:word" element={<WordSentencesPage />} />
+          {/* Knowledge graph is read-only exploration — open to any learner. */}
+          <Route path="/graph" element={<KnowledgeGraphPage />} />
+          <Route path="/chat" element={<ChatPage />} />
           <Route path="/exam/:attemptId" element={<ExamRunnerPage />} />
           <Route path="/results" element={<MyResultsPage />} />
           <Route path="/results/:attemptId" element={<AttemptReviewPage />} />
@@ -86,7 +90,6 @@ export default function App() {
         <Route element={<ProtectedRoute roles={['teacher']} />}>
           <Route path="/authoring" element={<AuthoringListPage />} />
           <Route path="/authoring/:testId" element={<TestEditorPage />} />
-          <Route path="/graph" element={<KnowledgeGraphPage />} />
           <Route path="/exam-files" element={<ExamFilesPage />} />
           <Route path="/exam-files/:id/review" element={<ExamFileReviewPage />} />
         </Route>

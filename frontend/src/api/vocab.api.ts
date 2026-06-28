@@ -33,6 +33,29 @@ export interface AttemptResult {
   pattern: string | null;
 }
 
+/** A word in the browse-all index. */
+export interface VocabWordSummary {
+  word: string;
+  pos: string;
+  sentences: number;
+}
+
+/** All words currently in the graph (for the browse-all list). */
+export async function listVocabWords(): Promise<VocabWordSummary[]> {
+  const res = await api.get<VocabWordSummary[]>('/vocab');
+  return res.data;
+}
+
+/** A word's example sentences only (lightweight — for the word page). */
+export async function getWordSentences(
+  word: string,
+): Promise<{ word: string; sentences: string[] }> {
+  const res = await api.get<{ word: string; sentences: string[] }>(
+    `/vocab/${encodeURIComponent(word)}/sentences`,
+  );
+  return res.data;
+}
+
 /** Look up a word → generate-and-cache learning content. */
 export async function lookupWord(word: string): Promise<VocabEntry> {
   const res = await api.get<VocabEntry>(`/vocab/${encodeURIComponent(word)}`);

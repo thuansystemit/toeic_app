@@ -1,6 +1,6 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import { LlmProvider } from './llm.types';
+import { ChatTurn, LlmProvider } from './llm.types';
 
 /**
  * Local Ollama provider. Uses the `/api/chat` endpoint with `format: 'json'`
@@ -61,5 +61,51 @@ export class OllamaProvider implements LlmProvider {
     const content = data.message?.content;
     if (!content) throw new Error('Ollama returned an empty message');
     return content;
+  }
+
+  /** Stream a chat completion (Ollama `/api/chat`, stream:true → NDJSON). */
+  async *streamChat(messages: ChatTurn[]): AsyncIterable<string> {
+    const res = await fetch(`${this.baseUrl}/api/chat`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        model: this.model,
+        stream: true,
+        options: { temperature: 0.4, num_predict: 800 },
+        messages,
+      }),
+    });
+    if (!res.ok || !res.body) {
+      const body = await res.text().catch(() => '');
+      this.logger.warn(`Ollama stream ${res.status}: ${body.slice(0, 200)}`);
+      throw new Error(`Ollama stream failed (${res.status})`);
+    }
+
+    const reader = res.body.getReader();
+    const decoder = new TextDecoder();
+    let buf = '';
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      buf += decoder.decode(value, { stream: true });
+      // Ollama streams newline-delimited JSON objects.
+      let nl: number;
+      while ((nl = buf.indexOf('\n')) >= 0) {
+        const line = buf.slice(0, nl).trim();
+        buf = buf.slice(nl + 1);
+        if (!line) continue;
+        try {
+          const obj = JSON.parse(line) as {
+            message?: { content?: string };
+            done?: boolean;
+          };
+          const delta = obj.message?.content;
+          if (delta) yield delta;
+          if (obj.done) return;
+        } catch {
+          /* ignore partial/non-JSON line */
+        }
+      }
+    }
   }
 }

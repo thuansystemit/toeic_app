@@ -29,6 +29,12 @@ export interface AppConfig {
     ollamaBaseUrl: string;
     ollamaModel: string;
   };
+  // Azure Neural Text-to-Speech (sentence audio). Optional — when unset the UI
+  // falls back to the browser's built-in voice.
+  azureSpeech: {
+    key: string;
+    region: string;
+  };
   mail: {
     from: string;
     smtp: {
@@ -76,6 +82,10 @@ export default (): AppConfig => ({
     provider: process.env.LLM_PROVIDER ?? 'ollama',
     ollamaBaseUrl: process.env.OLLAMA_BASE_URL ?? 'http://localhost:11434',
     ollamaModel: process.env.OLLAMA_MODEL ?? 'qwen2.5:3b',
+  },
+  azureSpeech: {
+    key: process.env.AZURE_SPEECH_KEY ?? '',
+    region: process.env.AZURE_SPEECH_REGION ?? 'eastus',
   },
   mail: {
     from: process.env.MAIL_FROM ?? 'TOEIC Platform <no-reply@toeic.local>',

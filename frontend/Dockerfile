@@ -23,6 +23,16 @@ ENV VITE_FACEBOOK_APP_ID=$VITE_FACEBOOK_APP_ID
 RUN npm run build --workspace frontend
 
 FROM nginx:alpine
+# Self-signed TLS cert for local/dev HTTPS (browsers warn once, then trust it for
+# the session). For production, replace with a real cert (Let's Encrypt / proxy).
+RUN apk add --no-cache openssl \
+ && mkdir -p /etc/nginx/certs \
+ && openssl req -x509 -nodes -newkey rsa:2048 -days 825 \
+      -keyout /etc/nginx/certs/selfsigned.key \
+      -out    /etc/nginx/certs/selfsigned.crt \
+      -subj "/CN=localhost" \
+      -addext "subjectAltName=DNS:localhost,IP:127.0.0.1"
 COPY frontend/nginx.conf /etc/nginx/conf.d/default.conf
+COPY frontend/app-locations.conf /etc/nginx/app-locations.conf
 COPY --from=build /app/frontend/dist /usr/share/nginx/html
-EXPOSE 80
+EXPOSE 80 443

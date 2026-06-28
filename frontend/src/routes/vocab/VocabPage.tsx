@@ -1,16 +1,19 @@
-import { FormEvent, useCallback, useEffect, useState } from 'react';
+import { FormEvent, useCallback, useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { useParams } from 'react-router-dom';
+import { Link, useParams } from 'react-router-dom';
 import { AxiosError } from 'axios';
 import { AppLayout } from '../../components/AppLayout';
 import { Icon } from '../../components/Icon';
 import {
+  listVocabWords,
   lookupWord,
   submitAttempt,
   type AttemptResult,
   type VocabEntry,
   type VocabExercise,
+  type VocabWordSummary,
 } from '../../api/vocab.api';
+import { WORD_GROUPS } from '../../data/toeicWordGroups';
 
 /** A single cloze exercise with its own answer/feedback state. */
 function ClozeExercise({ exercise }: { exercise: VocabExercise }) {
@@ -73,6 +76,30 @@ export function VocabPage() {
   const [entry, setEntry] = useState<VocabEntry | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [words, setWords] = useState<VocabWordSummary[]>([]);
+  const [filter, setFilter] = useState('');
+
+  // Load the browse-all word index once.
+  useEffect(() => {
+    listVocabWords()
+      .then(setWords)
+      .catch(() => undefined);
+  }, []);
+
+  // Which words already have generated content (for styling + progress count).
+  const generated = useMemo(
+    () => new Set(words.map((w) => w.word)),
+    [words],
+  );
+
+  // The TOEIC topic groups, filtered by the search box (empty groups hidden).
+  const filteredGroups = useMemo(() => {
+    const q = filter.trim().toLowerCase();
+    return WORD_GROUPS.map((g) => ({
+      category: g.category,
+      words: q ? g.words.filter((w) => w.includes(q)) : g.words,
+    })).filter((g) => g.words.length > 0);
+  }, [filter]);
 
   const runLookup = useCallback(
     async (raw: string) => {
@@ -225,6 +252,49 @@ export function VocabPage() {
           )}
         </div>
       )}
+
+      {/* Browse all words by TOEIC topic (3-column grid) */}
+      <div className="mt-8">
+        <div className="mb-3 flex flex-wrap items-center gap-3">
+          <h2 className="text-lg font-extrabold text-slate-800">{t('allWords')}</h2>
+          <span className="text-sm text-slate-400">{words.length}/600</span>
+          <input
+            className="input ml-auto h-9 max-w-xs py-1.5 text-sm"
+            value={filter}
+            onChange={(e) => setFilter(e.target.value)}
+            placeholder={t('filterWords')}
+          />
+        </div>
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+          {filteredGroups.map((g) => (
+            <div key={g.category} className="card p-4">
+              <h3 className="mb-2 text-sm font-bold text-slate-700">{g.category}</h3>
+              <div className="flex flex-wrap gap-1.5">
+                {g.words.map((w) =>
+                  generated.has(w) ? (
+                    // Built words jump to the graph and highlight their node.
+                    <Link
+                      key={w}
+                      to={`/graph?focus=${encodeURIComponent(w)}`}
+                      className="chip text-xs hover:bg-brand-50 hover:text-brand-700"
+                    >
+                      {w}
+                    </Link>
+                  ) : (
+                    // Not generated yet — shown muted, not clickable.
+                    <span key={w} className="chip text-xs text-slate-300">
+                      {w}
+                    </span>
+                  ),
+                )}
+              </div>
+            </div>
+          ))}
+        </div>
+        {filteredGroups.length === 0 && (
+          <p className="text-sm text-slate-400">{t('noWordsMatch')}</p>
+        )}
+      </div>
     </AppLayout>
   );
 }

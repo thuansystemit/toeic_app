@@ -36,6 +36,8 @@ export const ICONS = {
   vocab: 'fa-solid fa-spell-check',
   search: 'fa-solid fa-magnifying-glass',
   save: 'fa-solid fa-floppy-disk',
+  chat: 'fa-solid fa-comments',
+  send: 'fa-solid fa-paper-plane',
 } as const;
 
 export type IconName = keyof typeof ICONS;

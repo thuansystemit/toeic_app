@@ -32,6 +32,8 @@ import { ExamFilesModule } from './exam-files/exam-files.module';
 import { MasteryModule } from './mastery/mastery.module';
 import { LlmModule } from './llm/llm.module';
 import { VocabModule } from './vocab/vocab.module';
+import { TtsModule } from './tts/tts.module';
+import { ChatModule } from './chat/chat.module';
 import { HealthController } from './health.controller';
 
 const ENTITIES = [
@@ -89,6 +91,8 @@ const ENTITIES = [
     MasteryModule,
     LlmModule,
     VocabModule,
+    TtsModule,
+    ChatModule,
   ],
   controllers: [HealthController],
 })

@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import ForceGraph2D from 'react-force-graph-2d';
 import { AppLayout } from '../../components/AppLayout';
 import { getKnowledgeGraph, type KnowledgeGraph } from '../../api/tests.api';
@@ -21,10 +21,13 @@ const DIM = '#e2e8f0';
 export function KnowledgeGraphPage() {
   const { t } = useTranslation(['test', 'common']);
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+  const focus = searchParams.get('focus'); // a word to highlight (from /vocab)
   const [data, setData] = useState<KnowledgeGraph>({ nodes: [], links: [] });
   const [loading, setLoading] = useState(true);
   const [selected, setSelected] = useState<string | null>(null);
   const wrapRef = useRef<HTMLDivElement>(null);
+  const fgRef = useRef<{ centerAt: (x: number, y: number, ms?: number) => void; zoom: (k: number, ms?: number) => void } | null>(null);
   const [width, setWidth] = useState(800);
 
   useEffect(() => {
@@ -32,6 +35,26 @@ export function KnowledgeGraphPage() {
       .then(setData)
       .finally(() => setLoading(false));
   }, []);
+
+  // When arriving from the vocabulary page with ?focus=<word>, select that node.
+  useEffect(() => {
+    if (!focus || data.nodes.length === 0) return;
+    const node = data.nodes.find((n) => n.kind === 'word' && n.label === focus);
+    if (node) setSelected(node.id);
+  }, [focus, data]);
+
+  // Pan/zoom onto the focused node once the force layout settles.
+  const centerOnFocus = () => {
+    if (!focus || !fgRef.current) return;
+    const node = graphData.nodes.find(
+      (n: { kind: string; label: string; x?: number; y?: number }) =>
+        n.kind === 'word' && n.label === focus,
+    ) as { x?: number; y?: number } | undefined;
+    if (node && node.x != null && node.y != null) {
+      fgRef.current.centerAt(node.x, node.y, 800);
+      fgRef.current.zoom(4, 800);
+    }
+  };
 
   useEffect(() => {
     const measure = () => setWidth(wrapRef.current?.clientWidth ?? 800);
@@ -114,11 +137,13 @@ export function KnowledgeGraphPage() {
           </div>
         ) : (
           <ForceGraph2D
+            ref={fgRef as never}
             graphData={graphData}
             width={width}
             height={600}
             backgroundColor="#ffffff"
             cooldownTicks={120}
+            onEngineStop={centerOnFocus}
             nodeRelSize={5}
             nodeVal={(n: any) => (n.kind === 'skill' ? 4 : n.kind === 'word' ? 2 : 1)}
             linkColor={(l: any) => {

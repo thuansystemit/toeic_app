@@ -39,6 +39,13 @@ const STOP_WORDS = new Set([
   'usually', 'soon', 'already', 'yet',
 ]);
 
+/** One row in the browse-all words index. */
+export interface VocabWordSummary {
+  word: string;
+  pos: string;
+  sentences: number;
+}
+
 /** Grade feedback returned after a learner answers an exercise. */
 export interface AttemptResult {
   correct: boolean;
@@ -71,6 +78,40 @@ export class VocabService {
       wordId = await this.generateAndPersist(lemma);
     }
     return this.assemble(wordId);
+  }
+
+  /** Every word in the graph with its part-of-speech and sentence count. */
+  async listWords(): Promise<VocabWordSummary[]> {
+    const rows: { word: string; pos: string; sentences: string }[] =
+      await this.db.query(
+        `SELECT w.lemma AS word, w.pos AS pos, count(se.id) AS sentences
+         FROM lex_words w
+         LEFT JOIN lex_senses    sn ON sn.word_id = w.id
+         LEFT JOIN lex_sentences se ON se.sense_id = sn.id
+         GROUP BY w.id, w.lemma, w.pos
+         ORDER BY w.lemma ASC`,
+      );
+    return rows.map((r) => ({
+      word: r.word,
+      pos: r.pos,
+      sentences: Number(r.sentences),
+    }));
+  }
+
+  /** A word's example sentences (up to 10) — a light read for the word page. */
+  async getSentences(input: string): Promise<{ word: string; sentences: string[] }> {
+    const lemma = normalizeLemma(input);
+    const rows: { text: string }[] = await this.db.query(
+      `SELECT se.text
+       FROM lex_words w
+       JOIN lex_senses    sn ON sn.word_id = w.id
+       JOIN lex_sentences se ON se.sense_id = sn.id
+       WHERE w.lemma = $1
+       ORDER BY se.id ASC
+       LIMIT 10`,
+      [lemma],
+    );
+    return { word: lemma, sentences: rows.map((r) => r.text) };
   }
 
   /**

@@ -3,7 +3,6 @@ import { useTranslation } from 'react-i18next';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { logout } from '../api/auth.api';
 import { useAuthStore } from '../store/authStore';
-import { roleHome } from '../lib/roleHome';
 import { LocaleSwitcher } from './LocaleSwitcher';
 import { Icon } from './Icon';
 
@@ -30,7 +29,7 @@ export function AppLayout({ children }: { children: ReactNode }) {
       ? [
           { to: '/admin/users', label: t('navAdmin') },
           { to: '/admin/config', label: t('navConfig') },
-          { to: '/vocab', label: t('navVocab') },
+          { to: '/chat', label: t('navChat') },
         ]
       : role === 'teacher'
         ? [
@@ -39,11 +38,13 @@ export function AppLayout({ children }: { children: ReactNode }) {
             { to: '/graph', label: t('navGraph') },
             { to: '/tests', label: t('navTests') },
             { to: '/vocab', label: t('navVocab') },
+            { to: '/chat', label: t('navChat') },
           ]
         : [
             { to: '/tests', label: t('navTests') },
             { to: '/practice', label: t('navPractice') },
             { to: '/vocab', label: t('navVocab') },
+            { to: '/chat', label: t('navChat') },
             { to: '/results', label: t('navResults') },
           ];
 
@@ -59,7 +60,7 @@ export function AppLayout({ children }: { children: ReactNode }) {
       <header className="sticky top-0 z-30 border-b border-slate-100 bg-white/80 backdrop-blur">
         <div className="mx-auto flex max-w-6xl items-center justify-between gap-4 px-5 py-3">
           <div className="flex items-center gap-2">
-            <Link to={roleHome(role)} className="flex items-center gap-2 font-extrabold text-slate-800">
+            <Link to="/" className="flex items-center gap-2 font-extrabold text-slate-800">
               <span className="grid h-9 w-9 place-items-center rounded-2xl bg-brand-500 text-lg text-white shadow-soft">
                 <Icon name="brand" />
               </span>
