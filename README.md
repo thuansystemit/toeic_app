@@ -511,3 +511,11 @@ docker exec toeic_extraction_worker \
   recreate (`docker compose up -d backend`).
 - `.env` is gitignored; keep real keys there. `.env.example` is the committed
   template and must hold placeholders only.
+
+## License
+
+Released under the **MIT License** — see [`LICENSE`](./LICENSE) for the full text.
+
+Copyright (c) 2026 thuansystemit. You are free to use, copy, modify, and
+distribute this software with attribution; it is provided "as is", without
+warranty of any kind.

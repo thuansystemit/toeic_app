@@ -2,6 +2,7 @@
   "name": "toeic-app",
   "version": "0.1.0",
   "private": true,
+  "license": "MIT",
   "description": "TOEIC learning platform - monorepo (NestJS backend + React frontend)",
   "workspaces": [
     "backend",
